@@ -1,0 +1,24 @@
+{
+  "name": "@vango-panel/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@vango-panel/db": "workspace:*",
+    "@vango-panel/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@vango-panel/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

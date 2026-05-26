@@ -1,0 +1,27 @@
+{
+  "name": "@vango-panel/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "@vango-panel/auth": "workspace:*",
+    "@vango-panel/db": "workspace:*",
+    "@vango-panel/env": "workspace:*",
+    "dotenv": "catalog:",
+    "next": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@vango-panel/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
