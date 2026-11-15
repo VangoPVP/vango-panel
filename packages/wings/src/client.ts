@@ -27,14 +27,18 @@ export class WingsError extends Error {
 
 const TIMEOUT_MS = 10_000;
 
-type NodeRef = Pick<Node, "url" | "tokenEncrypted">;
+export type NodeRef = Pick<Node, "url" | "tokenEncrypted"> & Partial<Pick<Node, "publicUrl">>;
 
 export class WingsClient {
+  /** Panel → wings (server-side requests). */
   private readonly base: string;
+  /** Browser → wings (websocket, uploads, downloads). */
+  private readonly publicBase: string;
   private readonly token: string;
 
   constructor(node: NodeRef) {
     this.base = node.url.replace(/\/+$/, "");
+    this.publicBase = (node.publicUrl || node.url).replace(/\/+$/, "");
     this.token = decryptSecret(node.tokenEncrypted);
   }
 
@@ -43,7 +47,7 @@ export class WingsClient {
   }
 
   websocketUrl(serverId: string) {
-    return `${this.base.replace(/^http/, "ws")}/api/servers/${serverId}/ws`;
+    return `${this.publicBase.replace(/^http/, "ws")}/api/servers/${serverId}/ws`;
   }
 
   private async request(method: string, path: string, body?: unknown): Promise<Response> {
@@ -185,10 +189,10 @@ export class WingsClient {
   }
 
   downloadUrl(token: string) {
-    return `${this.base}/download/file?token=${encodeURIComponent(token)}`;
+    return `${this.publicBase}/download/file?token=${encodeURIComponent(token)}`;
   }
   uploadChunkUrl() {
-    return `${this.base}/upload/chunk`;
+    return `${this.publicBase}/upload/chunk`;
   }
 
   async writeFile(uuid: string, file: string, contents: string) {

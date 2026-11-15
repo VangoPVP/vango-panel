@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { isAdminRole } from "@vango-panel/auth/roles";
-import prisma, { type Node, type Prisma } from "@vango-panel/db";
-import { effectivePermissions, hasPermission, WingsClient, WingsError } from "@vango-panel/wings";
+import prisma, { type Prisma } from "@vango-panel/db";
+import { effectivePermissions, hasPermission, type NodeRef, WingsClient, WingsError } from "@vango-panel/wings";
 
 export async function callWings<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -42,7 +42,7 @@ export function toTrpcError(e: unknown): TRPCError {
   }
 }
 
-export function wingsFor(node: Pick<Node, "url" | "tokenEncrypted">) {
+export function wingsFor(node: NodeRef) {
   return new WingsClient(node);
 }
 
@@ -100,7 +100,7 @@ export async function logActivity(entry: {
   }
 }
 
-export async function trySync(server: { id: string; node: { url: string; tokenEncrypted: string } }) {
+export async function trySync(server: { id: string; node: NodeRef }) {
   try {
     await wingsFor(server.node).sync(server.id);
     return { synced: true as const };

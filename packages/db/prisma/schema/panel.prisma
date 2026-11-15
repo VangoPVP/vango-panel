@@ -2,6 +2,9 @@ model Node {
   id             String   @id @default(uuid()) @db.Uuid
   name           String   @unique
   url            String
+  /// Where browsers reach wings (console websocket, uploads, downloads), e.g. a
+  /// NetBird/reverse-proxy URL. Null means browsers use `url` too.
+  publicUrl      String?
   sftpHost       String
   sftpPort       Int      @default(2022)
   tokenId        String   @unique

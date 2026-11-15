@@ -1,5 +1,5 @@
 import { createPrismaClient } from "@vango-panel/db";
-import { env } from "@vango-panel/env/server";
+import { env, panelOrigins } from "@vango-panel/env/server";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
@@ -15,7 +15,7 @@ export function createAuth() {
       provider: "postgresql",
     }),
 
-    trustedOrigins: [env.CORS_ORIGIN],
+    trustedOrigins: panelOrigins(),
     emailAndPassword: {
       enabled: true,
     },

@@ -78,6 +78,7 @@ function CreateNode() {
   const [form, setForm] = useState({
     name: "",
     url: "http://127.0.0.1:8080",
+    publicUrl: "",
     sftpHost: "127.0.0.1",
     sftpPort: 2022,
     memoryMib: 0,
@@ -111,8 +112,18 @@ function CreateNode() {
           <Field label="Name">
             <Input required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="node-1" />
           </Field>
-          <Field label="Daemon URL" hint="How the panel reaches wings, and the browser reaches the console.">
+          <Field label="Daemon URL" hint="How the panel reaches wings.">
             <Input required value={form.url} onChange={(e) => set("url", e.target.value)} />
+          </Field>
+          <Field
+            label="Browser URL"
+            hint="How browsers reach wings (console, uploads, downloads), e.g. a NetBird proxy URL. Empty = Daemon URL."
+          >
+            <Input
+              value={form.publicUrl}
+              onChange={(e) => set("publicUrl", e.target.value)}
+              placeholder="https://node-1.example.proxy.netbird.io"
+            />
           </Field>
           <Field label="SFTP host">
             <Input required value={form.sftpHost} onChange={(e) => set("sftpHost", e.target.value)} />

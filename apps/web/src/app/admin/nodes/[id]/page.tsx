@@ -86,6 +86,7 @@ function EditNode({ node }: { node: NodeData }) {
   const [form, setForm] = useState({
     name: node.name,
     url: node.url,
+    publicUrl: node.publicUrl ?? "",
     sftpHost: node.sftpHost,
     sftpPort: node.sftpPort,
     memoryMib: node.memoryMib,
@@ -117,8 +118,15 @@ function EditNode({ node }: { node: NodeData }) {
           <Field label="Name">
             <Input value={form.name} onChange={(e) => set("name", e.target.value)} />
           </Field>
-          <Field label="Daemon URL">
+          <Field label="Daemon URL" hint="How the panel reaches wings.">
             <Input value={form.url} onChange={(e) => set("url", e.target.value)} />
+          </Field>
+          <Field label="Browser URL" hint="How browsers reach wings. Empty = Daemon URL.">
+            <Input
+              value={form.publicUrl}
+              onChange={(e) => set("publicUrl", e.target.value)}
+              placeholder="https://node-1.example.proxy.netbird.io"
+            />
           </Field>
           <Field label="SFTP host">
             <Input value={form.sftpHost} onChange={(e) => set("sftpHost", e.target.value)} />

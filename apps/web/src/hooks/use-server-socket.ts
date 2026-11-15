@@ -13,6 +13,26 @@ const MAX_LINES = 1000;
 
 type Frame = { event: string; args?: string[] };
 
+const LOOPBACK = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/;
+
+/** Explains the common misconfigurations behind a failed browser → wings connection. */
+function socketHint(socketUrl: string): string {
+  let u: URL;
+  try {
+    u = new URL(socketUrl);
+  } catch {
+    return "";
+  }
+  const page = window.location;
+  if (LOOPBACK.test(u.hostname) && !LOOPBACK.test(page.hostname)) {
+    return " That address points at your own machine, not the node. Set the node's Browser URL in Admin → Nodes.";
+  }
+  if (page.protocol === "https:" && u.protocol === "ws:") {
+    return " Browsers block insecure ws:// from an https:// page. Set an https Browser URL for the node.";
+  }
+  return "";
+}
+
 export function useServerSocket(serverId: string, opts: { onInstallCompleted?: () => void } = {}) {
   const [status, setStatus] = useState<SocketStatus>("connecting");
   const [state, setState] = useState<PowerState | null>(null);
@@ -143,7 +163,7 @@ export function useServerSocket(serverId: string, opts: { onInstallCompleted?: (
         }
       };
 
-      ws.onerror = () => setError("Could not reach the node's websocket");
+      ws.onerror = () => setError(`Could not reach the node's websocket (${creds.socket}).${socketHint(creds.socket)}`);
       ws.onclose = () => {
         if (wsRef.current === ws) wsRef.current = null;
         if (disposed) setStatus("closed");

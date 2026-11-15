@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import prisma from "@vango-panel/db";
-import { env } from "@vango-panel/env/server";
+import { env, panelOrigins } from "@vango-panel/env/server";
 import { decryptSecret, encryptSecret, nodeConfigYaml, randomToken, WingsError } from "@vango-panel/wings";
 import { z } from "zod";
 
@@ -14,6 +14,11 @@ const nodeFields = z.object({
   url: z
     .url({ protocol: /^https?$/ })
     .transform((u) => u.replace(/\/+$/, "")),
+  // Optional browser-facing URL (e.g. a NetBird reverse-proxy service). Empty = same as `url`.
+  publicUrl: z
+    .union([z.literal(""), z.url({ protocol: /^https?$/ })])
+    .nullish()
+    .transform((u) => (u ? u.replace(/\/+$/, "") : null)),
   sftpHost: z.string().trim().min(1).max(253),
   sftpPort: z.number().int().min(1).max(65535).default(2022),
   memoryMib: z.number().int().min(0).default(0),
@@ -71,6 +76,7 @@ export const nodesRouter = router({
         id: n.id,
         name: n.name,
         url: n.url,
+        publicUrl: n.publicUrl,
         sftpHost: n.sftpHost,
         sftpPort: n.sftpPort,
         memoryMib: n.memoryMib,
@@ -113,7 +119,12 @@ export const nodesRouter = router({
   configuration: adminProcedure.input(idInput).query(async ({ input }) => {
     const n = await prisma.node.findUnique({ where: { id: input.id } });
     if (!n) throw new TRPCError({ code: "NOT_FOUND", message: "Node not found" });
-    return { yaml: nodeConfigYaml(n, decryptSecret(n.tokenEncrypted), env.BETTER_AUTH_URL) };
+    return {
+      yaml: nodeConfigYaml(n, decryptSecret(n.tokenEncrypted), {
+        remote: env.PANEL_REMOTE_URL ?? env.BETTER_AUTH_URL,
+        allowedOrigins: panelOrigins(),
+      }),
+    };
   }),
 
   create: adminProcedure.input(nodeFields).mutation(async ({ ctx, input }) => {
