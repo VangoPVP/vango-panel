@@ -1,14 +1,20 @@
 "use client";
+import { isAdminRole } from "@vango-panel/auth/roles";
 import Link from "next/link";
+
+import { authClient } from "@/lib/auth-client";
 
 import { ModeToggle } from "./mode-toggle";
 import UserMenu from "./user-menu";
 
 export default function Header() {
-  const links = [
-    { to: "/", label: "Home" },
-    { to: "/dashboard", label: "Dashboard" },
-  ] as const;
+  const { data: session } = authClient.useSession();
+  const links = session
+    ? ([
+        { to: "/dashboard", label: "Servers" },
+        ...(isAdminRole(session.user.role) ? [{ to: "/admin", label: "Admin" } as const] : []),
+      ] as const)
+    : [];
 
   return (
     <div>

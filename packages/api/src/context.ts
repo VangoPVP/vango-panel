@@ -8,6 +8,7 @@ export async function createContext(req: NextRequest) {
   return {
     auth: null,
     session,
+    ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || null,
   };
 }
 

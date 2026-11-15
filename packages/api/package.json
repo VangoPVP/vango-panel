@@ -16,6 +16,7 @@
     "@vango-panel/auth": "workspace:*",
     "@vango-panel/db": "workspace:*",
     "@vango-panel/env": "workspace:*",
+    "@vango-panel/wings": "workspace:*",
     "dotenv": "catalog:",
     "next": "catalog:",
     "zod": "catalog:"

@@ -1,10 +1,13 @@
 import { auth } from "@vango-panel/auth";
+import { isAdminRole } from "@vango-panel/auth/roles";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import Dashboard from "./dashboard";
+import { PageShell } from "@/components/form";
 
-export default async function DashboardPage() {
+import Dashboard, { ViewToggle } from "./dashboard";
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -13,11 +16,22 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const isAdmin = isAdminRole(session.user.role);
+  const view = isAdmin && (await searchParams).view === "others" ? "others" : "mine";
+
   return (
-    <div>
-      <h1>Dashboard</h1>
-      <p>Welcome {session.user.name}</p>
-      <Dashboard session={session} />
+    <div className="container mx-auto max-w-6xl px-4 py-6">
+      <PageShell
+        title={view === "others" ? "Other servers" : "Your servers"}
+        description={
+          view === "others"
+            ? "Servers you don't own or have access to. As an admin you can open and manage all of them."
+            : `Signed in as ${session.user.name}`
+        }
+        actions={isAdmin ? <ViewToggle view={view} /> : null}
+      >
+        <Dashboard view={view} />
+      </PageShell>
     </div>
   );
 }

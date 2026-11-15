@@ -9,7 +9,17 @@ model User {
   sessions      Session[]
   accounts      Account[]
 
+  role String @default("user")
+
+  username        String?  @unique
+  displayUsername String?
+
+  ownedServers Server[]
+  subuserOf    ServerUser[]
+  sshKeys      SshKey[]
+
   @@unique([email])
+  @@unique([role], where: raw("role = 'superadmin'"), map: "user_single_superadmin")
   @@map("user")
 }
 

@@ -20,25 +20,25 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
       password: "",
     },
     onSubmit: async ({ value }) => {
-      await authClient.signIn.email(
-        {
-          email: value.email,
-          password: value.password,
+      const login = value.email.trim();
+      const handlers = {
+        onSuccess: () => {
+          router.push("/dashboard");
+          toast.success("Sign in successful");
         },
-        {
-          onSuccess: () => {
-            router.push("/dashboard");
-            toast.success("Sign in successful");
-          },
-          onError: (error) => {
-            toast.error(error.error.message || error.error.statusText);
-          },
+        onError: (error: { error: { message?: string; statusText: string } }) => {
+          toast.error(error.error.message || error.error.statusText);
         },
-      );
+      };
+      if (login.includes("@")) {
+        await authClient.signIn.email({ email: login, password: value.password }, handlers);
+      } else {
+        await authClient.signIn.username({ username: login, password: value.password }, handlers);
+      }
     },
     validators: {
       onSubmit: z.object({
-        email: z.email("Invalid email address"),
+        email: z.string().trim().min(1, "Enter your email or username"),
         password: z.string().min(8, "Password must be at least 8 characters"),
       }),
     },
@@ -64,11 +64,12 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
           <form.Field name="email">
             {(field) => (
               <div className="space-y-2">
-                <Label htmlFor={field.name}>Email</Label>
+                <Label htmlFor={field.name}>Email or username</Label>
                 <Input
                   id={field.name}
                   name={field.name}
-                  type="email"
+                  type="text"
+                  autoComplete="username"
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}

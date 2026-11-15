@@ -39,6 +39,8 @@
     "db:watch": "turbo -F @vango-panel/db db:watch",
     "db:stop": "turbo -F @vango-panel/db db:stop",
     "db:down": "turbo -F @vango-panel/db db:down",
+    "seed:dev": "bun run --cwd packages/wings seed:dev",
+    "test": "bun run --cwd packages/wings test",
     "check": "biome check --write ."
   },
   "dependencies": {

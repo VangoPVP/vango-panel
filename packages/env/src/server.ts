@@ -9,9 +9,9 @@ export const env = createEnv({
     BETTER_AUTH_URL: z.url(),
     CORS_ORIGIN: z.url(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-    DISCORD_CLIENT_ID: z.string().min(1),
-    DISCORD_CLIENT_SECRET: z.string().min(1),
-    DISCORD_BOT_TOKEN: z.string().min(1),
+    PANEL_APP_KEY: z
+      .string()
+      .refine((v) => Buffer.from(v, "base64").length === 32, "must be base64 of exactly 32 bytes"),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

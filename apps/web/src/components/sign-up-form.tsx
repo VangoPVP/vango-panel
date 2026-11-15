@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { usernameError } from "@vango-panel/auth/username";
 import { Button } from "@vango-panel/ui/components/button";
 import { Input } from "@vango-panel/ui/components/input";
 import { Label } from "@vango-panel/ui/components/label";
@@ -19,6 +20,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
       email: "",
       password: "",
       name: "",
+      username: "",
     },
     onSubmit: async ({ value }) => {
       await authClient.signUp.email(
@@ -26,6 +28,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
           email: value.email,
           password: value.password,
           name: value.name,
+          username: value.username.trim(),
         },
         {
           onSuccess: () => {
@@ -41,6 +44,10 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
     validators: {
       onSubmit: z.object({
         name: z.string().min(2, "Name must be at least 2 characters"),
+        username: z.string().superRefine((v, ctx) => {
+          const err = usernameError(v);
+          if (err) ctx.addIssue({ code: "custom", message: err });
+        }),
         email: z.email("Invalid email address"),
         password: z.string().min(8, "Password must be at least 8 characters"),
       }),
@@ -75,6 +82,33 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
+                {field.state.meta.errors.map((error) => (
+                  <p key={error?.message} className="text-red-500">
+                    {error?.message}
+                  </p>
+                ))}
+              </div>
+            )}
+          </form.Field>
+        </div>
+
+        <div>
+          <form.Field name="username">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor={field.name}>Username</Label>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  autoComplete="username"
+                  aria-describedby="username-hint"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <p id="username-hint" className="text-muted-foreground text-xs">
+                  Also your SFTP login. Letters, numbers, _ and .
+                </p>
                 {field.state.meta.errors.map((error) => (
                   <p key={error?.message} className="text-red-500">
                     {error?.message}
