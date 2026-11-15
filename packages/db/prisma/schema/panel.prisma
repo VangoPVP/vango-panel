@@ -1,0 +1,153 @@
+model Node {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @unique
+  url            String
+  sftpHost       String
+  sftpPort       Int      @default(2022)
+  tokenId        String   @unique
+  tokenEncrypted String
+  memoryMib      Int      @default(0)
+  diskMib        Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  allocations Allocation[]
+  servers     Server[]
+
+  @@map("node")
+}
+
+model Allocation {
+  id        String   @id @default(uuid()) @db.Uuid
+  nodeId    String   @db.Uuid
+  node      Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  ip        String
+  port      Int
+  serverId  String?  @db.Uuid
+  server    Server?  @relation("ServerAllocations", fields: [serverId], references: [id], onDelete: SetNull)
+  defaultOf Server?  @relation("DefaultAllocation")
+  createdAt DateTime @default(now())
+
+  @@unique([nodeId, ip, port])
+  @@index([serverId])
+  @@map("allocation")
+}
+
+model Template {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String   @unique
+  description       String   @default("")
+  image             String
+  dockerImages      Json     @default("{}")
+  startup           String
+  stopType          String   @default("command")
+  stopValue         String   @default("stop")
+  startupDone       String[] @default([])
+  stripAnsi         Boolean  @default(true)
+  configFiles       Json     @default("[]")
+  fileDenylist      String[] @default([])
+  installImage      String   @default("busybox:latest")
+  installEntrypoint String   @default("sh")
+  installScript     String   @default("")
+  variables         Json     @default("[]")
+  features          String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  servers Server[]
+
+  @@map("template")
+}
+
+enum ServerStatus {
+  installing
+  install_failed
+  reinstall_failed
+  restoring_backup
+}
+
+model Server {
+  id          String        @id @default(uuid()) @db.Uuid
+  name        String
+  description String        @default("")
+  ownerId     String
+  owner       User          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  nodeId      String        @db.Uuid
+  node        Node          @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  templateId  String        @db.Uuid
+  template    Template      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  status      ServerStatus?
+  suspended   Boolean       @default(false)
+  skipInstall Boolean       @default(false)
+
+  image       String
+  startup     String
+  environment Json          @default("{}")
+
+  memoryMib   Int
+  swapMib     Int           @default(0)
+  diskMib     Int
+  cpuPercent  Int           @default(0)
+  ioWeight    Int           @default(500)
+  threads     String?
+  oomDisabled Boolean       @default(false)
+
+  defaultAllocationId String?      @unique @db.Uuid
+  defaultAllocation   Allocation?  @relation("DefaultAllocation", fields: [defaultAllocationId], references: [id], onDelete: SetNull)
+  allocations         Allocation[] @relation("ServerAllocations")
+
+  lastState       String?
+  lastUtilization Json?
+  lastReportAt    DateTime?
+  installedAt     DateTime?
+
+  subusers  ServerUser[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([ownerId])
+  @@index([nodeId])
+  @@map("server")
+}
+
+model ServerUser {
+  serverId    String   @db.Uuid
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions String[] @default([])
+  createdAt   DateTime @default(now())
+
+  @@id([serverId, userId])
+  @@index([userId])
+  @@map("server_user")
+}
+
+model Activity {
+  id        String   @id @default(uuid()) @db.Uuid
+  serverId  String?
+  userId    String?
+  event     String
+  metadata  Json     @default("{}")
+  ip        String?
+  source    String   @default("panel")
+  timestamp DateTime @default(now())
+
+  @@index([serverId, timestamp])
+  @@map("activity")
+}
+
+model SshKey {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  type        String
+  fingerprint String
+  publicKey   String
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+
+  @@unique([userId, fingerprint])
+  @@map("ssh_key")
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@vango-panel/wings",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "seed:dev": "bun --env-file=../../apps/web/.env src/seed-dev.ts",
+    "test": "bun --env-file=../../apps/web/.env test"
+  },
+  "dependencies": {
+    "@vango-panel/auth": "workspace:*",
+    "@vango-panel/db": "workspace:*",
+    "@vango-panel/env": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "@types/node": "^22.13.14",
+    "@vango-panel/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
