@@ -3,7 +3,7 @@ import { Button } from "@vango-panel/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@vango-panel/ui/components/card";
 import { Input } from "@vango-panel/ui/components/input";
 import { cn } from "@vango-panel/ui/lib/utils";
-import { Copy } from "lucide-react";
+import { Copy, Eraser } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ export default function ConsoleTab() {
           status={socket.status}
           canSend={can(server.permissions, "control.console") && socket.status === "connected" && running}
           onSend={socket.sendCommand}
+          onClear={socket.clear}
         />
         <div className="grid content-start gap-3">
           <Stat label="CPU" value={formatCpu(stats?.cpu_absolute, server.limits.cpuPercent || undefined)} />
@@ -133,11 +134,13 @@ function ConsoleBox({
   status,
   canSend,
   onSend,
+  onClear,
 }: {
   lines: ConsoleLine[];
   status: string;
   canSend: boolean;
   onSend: (cmd: string) => boolean;
+  onClear: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -211,6 +214,21 @@ function ConsoleBox({
             }
           }}
         />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-auto shrink-0 rounded-none border-l text-muted-foreground"
+          onClick={() => {
+            onClear();
+            stick.current = true;
+          }}
+          disabled={lines.length === 0}
+          title="Clear console (only your view; history returns on reload)"
+          aria-label="Clear console"
+        >
+          <Eraser /> Clear
+        </Button>
       </form>
     </div>
   );

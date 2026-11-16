@@ -251,5 +251,8 @@ export function useServerSocket(serverId: string, opts: { onInstallCompleted?: (
     return connRef.current?.send({ event: "send command", args: [command] }) ?? false;
   }, []);
 
-  return { status, state, stats, lines, error, sendCommand };
+  /** Clears this browser's view only; history comes back from wings on reconnect/reload. */
+  const clear = useCallback(() => setLines([]), []);
+
+  return { status, state, stats, lines, error, sendCommand, clear };
 }
