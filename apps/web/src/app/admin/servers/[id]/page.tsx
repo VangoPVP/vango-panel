@@ -89,7 +89,7 @@ function EditServer({ server: s }: { server: Server }) {
           <Link className="underline" href={`/admin/nodes/${s.node.id}` as Route}>
             {s.node.name}
           </Link>{" "}
-          · {s.template.name} · {s.allocations.map((a) => `${a.ip}:${a.port}`).join(", ")}
+          · {s.template.name} · {s.allocations.map((a) => a.address).join(", ")}
         </>
       }
       actions={

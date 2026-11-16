@@ -51,8 +51,18 @@ export default function ConsoleTab() {
           </CardHeader>
           <CardContent className="grid gap-1 font-mono">
             {server.allocations.map((a) => (
-              <div key={a.id}>
-                {a.ip}:{a.port} {a.isDefault ? <span className="text-muted-foreground">(primary)</span> : null}
+              <div key={a.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate">
+                  {a.address} {a.isDefault ? <span className="text-muted-foreground">(primary)</span> : null}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  aria-label={`Copy ${a.address}`}
+                  onClick={() => navigator.clipboard.writeText(a.address).then(() => toast.success("Copied"))}
+                >
+                  <Copy />
+                </Button>
               </div>
             ))}
           </CardContent>

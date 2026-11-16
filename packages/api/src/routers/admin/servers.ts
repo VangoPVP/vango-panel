@@ -1,6 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import prisma, { type Prisma } from "@vango-panel/db";
-import { parseDockerImages, parseTemplateVariables, validateVariables, WingsError } from "@vango-panel/wings";
+import {
+  connectAddress,
+  parseDockerImages,
+  parseTemplateVariables,
+  validateVariables,
+  WingsError,
+} from "@vango-panel/wings";
 import { z } from "zod";
 
 import { adminProcedure, router } from "../../index";
@@ -55,7 +61,7 @@ export const adminServersRouter = router({
       orderBy: { name: "asc" },
       include: {
         owner: { select: { id: true, name: true, email: true } },
-        node: { select: { id: true, name: true } },
+        node: { select: { id: true, name: true, sftpHost: true } },
         template: { select: { id: true, name: true } },
         defaultAllocation: true,
       },
@@ -66,9 +72,9 @@ export const adminServersRouter = router({
       status: s.status,
       suspended: s.suspended,
       owner: s.owner,
-      node: s.node,
+      node: { id: s.node.id, name: s.node.name },
       template: s.template,
-      address: s.defaultAllocation ? `${s.defaultAllocation.ip}:${s.defaultAllocation.port}` : null,
+      address: s.defaultAllocation ? connectAddress(s.defaultAllocation, s.node) : null,
       memoryMib: s.memoryMib,
       diskMib: s.diskMib,
       cpuPercent: s.cpuPercent,
@@ -81,7 +87,7 @@ export const adminServersRouter = router({
       where: { id: input.id },
       include: {
         owner: { select: { id: true, name: true, email: true } },
-        node: { select: { id: true, name: true } },
+        node: { select: { id: true, name: true, sftpHost: true } },
         template: true,
         allocations: { orderBy: { port: "asc" } },
       },
@@ -89,6 +95,8 @@ export const adminServersRouter = router({
     if (!s) throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
     return {
       ...s,
+      node: { id: s.node.id, name: s.node.name },
+      allocations: s.allocations.map((a) => ({ ...a, address: connectAddress(a, s.node) })),
       environment: (s.environment ?? {}) as Record<string, string>,
       template: {
         id: s.template.id,
@@ -104,7 +112,7 @@ export const adminServersRouter = router({
     prisma.allocation.findMany({
       where: { nodeId: input.nodeId, serverId: null },
       orderBy: [{ ip: "asc" }, { port: "asc" }],
-      select: { id: true, ip: true, port: true },
+      select: { id: true, ip: true, port: true, ipAlias: true },
     }),
   ),
 

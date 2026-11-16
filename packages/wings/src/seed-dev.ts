@@ -43,16 +43,18 @@ async function main() {
       tokenId: NODE.tokenId,
       tokenEncrypted: encryptSecret(NODE.token),
     },
-    update: { url: NODE.url, sftpHost: NODE.sftpHost, sftpPort: NODE.sftpPort, tokenEncrypted: encryptSecret(NODE.token) },
+    // sftpHost is deliberately not reset: it doubles as the node's public address (Admin → Nodes).
+    update: { url: NODE.url, sftpPort: NODE.sftpPort, tokenEncrypted: encryptSecret(NODE.token) },
   });
   console.log(`node      ${node.name} (${node.id}) → ${node.url}`);
 
   const ports = [25565, 25566, 25567, 25568, 25569, 25570];
   const created = await prisma.allocation.createMany({
-    data: ports.map((port) => ({ nodeId: node.id, ip: "127.0.0.1", port })),
+    // Bind on all interfaces; the panel shows the node's SFTP host as the connect address.
+    data: ports.map((port) => ({ nodeId: node.id, ip: "0.0.0.0", port })),
     skipDuplicates: true,
   });
-  console.log(`allocs    127.0.0.1:${ports[0]}-${ports.at(-1)} (${created.count} new)`);
+  console.log(`allocs    0.0.0.0:${ports[0]}-${ports.at(-1)} (${created.count} new)`);
 
   const { name, ...rest } = TEMPLATE;
   const template = await prisma.template.upsert({ where: { name }, create: TEMPLATE, update: rest });

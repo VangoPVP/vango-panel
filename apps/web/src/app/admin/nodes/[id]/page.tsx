@@ -128,7 +128,7 @@ function EditNode({ node }: { node: NodeData }) {
               placeholder="https://node-1.example.proxy.netbird.io"
             />
           </Field>
-          <Field label="SFTP host">
+          <Field label="Public host" hint="Users connect here for SFTP and for servers bound to 0.0.0.0.">
             <Input value={form.sftpHost} onChange={(e) => set("sftpHost", e.target.value)} />
           </Field>
           <Field label="SFTP port">
@@ -190,7 +190,8 @@ function ConfigCard({ id }: { id: string }) {
 
 function Allocations({ node }: { node: NodeData }) {
   const qc = useQueryClient();
-  const [ip, setIp] = useState(node.allocations[0]?.ip ?? "0.0.0.0");
+  const [ip, setIp] = useState("0.0.0.0");
+  const [ipAlias, setIpAlias] = useState("");
   const [ports, setPorts] = useState("");
   const invalidate = () => qc.invalidateQueries({ queryKey: trpc.admin.nodes.pathKey() });
   const add = useMutation(
@@ -211,18 +212,24 @@ function Allocations({ node }: { node: NodeData }) {
     <Card size="sm">
       <CardHeader>
         <CardTitle>Allocations</CardTitle>
-        <CardDescription>IP:port pairs that servers on this node can bind.</CardDescription>
+        <CardDescription>
+          Bind IP is what Docker publishes the port on (0.0.0.0 = all interfaces). Users see the alias if set,
+          otherwise the node's public host ({node.sftpHost}) for 0.0.0.0 binds.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
         <form
           className="flex flex-wrap items-end gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            add.mutate({ nodeId: node.id, ip, ports });
+            add.mutate({ nodeId: node.id, ip, ipAlias, ports });
           }}
         >
-          <Field label="IP" className="w-40">
+          <Field label="Bind IP" className="w-40">
             <Input value={ip} onChange={(e) => setIp(e.target.value)} />
+          </Field>
+          <Field label="Alias (optional)" className="w-48">
+            <Input value={ipAlias} onChange={(e) => setIpAlias(e.target.value)} placeholder="play.example.com" />
           </Field>
           <Field label="Ports" className="w-64">
             <Input value={ports} onChange={(e) => setPorts(e.target.value)} placeholder="25565-25570, 25600" />
@@ -234,44 +241,131 @@ function Allocations({ node }: { node: NodeData }) {
         <Table>
           <thead>
             <tr>
-              <th>Address</th>
+              <th>Bind</th>
+              <th>Alias</th>
+              <th>Users connect to</th>
               <th>Server</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {node.allocations.map((a) => (
-              <tr key={a.id}>
-                <td className="font-mono">
-                  {a.ip}:{a.port}
-                </td>
-                <td>
-                  {a.server ? (
-                    <Link className="underline underline-offset-2" href={`/admin/servers/${a.server.id}` as Route}>
-                      {a.server.name}
-                    </Link>
-                  ) : (
-                    <span className="text-muted-foreground">free</span>
-                  )}
-                </td>
-                <td className="text-right">
-                  {!a.server ? (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      disabled={remove.isPending}
-                      onClick={() => remove.mutate({ id: a.id })}
-                    >
-                      Remove
-                    </Button>
-                  ) : null}
-                </td>
-              </tr>
+              <AllocationRow
+                key={a.id}
+                allocation={a}
+                onChanged={invalidate}
+                onRemove={() => remove.mutate({ id: a.id })}
+                removing={remove.isPending}
+              />
             ))}
           </tbody>
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+function AllocationRow({
+  allocation: a,
+  onChanged,
+  onRemove,
+  removing,
+}: {
+  allocation: NodeData["allocations"][number];
+  onChanged: () => void;
+  onRemove: () => void;
+  removing: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [ip, setIp] = useState(a.ip);
+  const [ipAlias, setIpAlias] = useState(a.ipAlias ?? "");
+  const update = useMutation(
+    trpc.admin.nodes.updateAllocation.mutationOptions({
+      onSuccess: (r) => {
+        if (!r.rebound) toast.success("Saved");
+        else if (r.synced) toast.success("Saved. Restart the server to bind the new IP.");
+        else toast.warning(`Saved, but the node wasn't updated: ${r.warning}`);
+        setEditing(false);
+        onChanged();
+      },
+      onError: (e) => toast.error(e.message),
+    }),
+  );
+  const loopback = /^127\.|^::1$/.test(a.ip);
+
+  if (editing) {
+    return (
+      <tr>
+        <td>
+          <Input className="h-7 w-36 font-mono" value={ip} onChange={(e) => setIp(e.target.value)} aria-label="Bind IP" />
+          <span className="ml-1 font-mono text-muted-foreground">:{a.port}</span>
+        </td>
+        <td colSpan={2}>
+          <Input
+            className="h-7 w-48 font-mono"
+            value={ipAlias}
+            onChange={(e) => setIpAlias(e.target.value)}
+            placeholder="none"
+            aria-label="Alias"
+          />
+        </td>
+        <td>{a.server?.name ?? <span className="text-muted-foreground">free</span>}</td>
+        <td className="whitespace-nowrap text-right">
+          <Button
+            size="xs"
+            disabled={update.isPending}
+            onClick={() => update.mutate({ id: a.id, ip: ip.trim(), ipAlias })}
+          >
+            Save
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              setIp(a.ip);
+              setIpAlias(a.ipAlias ?? "");
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </Button>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <td className="font-mono">
+        {a.ip}:{a.port}
+        {loopback ? (
+          <span className="ml-2 text-amber-500" title="Only reachable from the node itself">
+            loopback
+          </span>
+        ) : null}
+      </td>
+      <td className="font-mono">{a.ipAlias ?? <span className="text-muted-foreground">–</span>}</td>
+      <td className="font-mono">{a.address}</td>
+      <td>
+        {a.server ? (
+          <Link className="underline underline-offset-2" href={`/admin/servers/${a.server.id}` as Route}>
+            {a.server.name}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">free</span>
+        )}
+      </td>
+      <td className="whitespace-nowrap text-right">
+        <Button variant="ghost" size="xs" onClick={() => setEditing(true)}>
+          Edit
+        </Button>
+        {!a.server ? (
+          <Button variant="ghost" size="xs" disabled={removing} onClick={onRemove}>
+            Remove
+          </Button>
+        ) : null}
+      </td>
+    </tr>
   );
 }
 

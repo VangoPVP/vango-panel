@@ -123,6 +123,7 @@ export default function NewServerPage() {
                 {allocations.data?.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.ip}:{a.port}
+                    {a.ipAlias ? ` (${a.ipAlias})` : ""}
                   </option>
                 ))}
               </Select>

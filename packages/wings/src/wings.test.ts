@@ -42,6 +42,7 @@ const alloc = (id: string, ip: string, port: number): Allocation => ({
   nodeId: "n",
   ip,
   port,
+  ipAlias: null,
   serverId: "8d3f2a1c-5b6e-4f7a-9c0d-1e2f3a4b5c6d",
   createdAt: now,
 });

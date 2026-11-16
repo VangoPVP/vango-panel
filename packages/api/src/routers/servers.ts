@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { isAdminRole } from "@vango-panel/auth/roles";
 import prisma, { type Prisma } from "@vango-panel/db";
 import {
+  connectAddress,
   hasPermission,
   isEggFeature,
   parseDockerImages,
@@ -44,7 +45,7 @@ export const serversRouter = router({
         where: input.scope === "others" ? { NOT: mine } : mine,
         orderBy: { name: "asc" },
         include: {
-          node: { select: { id: true, name: true } },
+          node: { select: { id: true, name: true, sftpHost: true } },
           defaultAllocation: true,
           owner: { select: { id: true, name: true, email: true } },
         },
@@ -56,8 +57,8 @@ export const serversRouter = router({
         status: s.status,
         suspended: s.suspended,
         isOwner: s.ownerId === user.id,
-        node: s.node,
-        address: s.defaultAllocation ? `${s.defaultAllocation.ip}:${s.defaultAllocation.port}` : null,
+        node: { id: s.node.id, name: s.node.name },
+        address: s.defaultAllocation ? connectAddress(s.defaultAllocation, s.node) : null,
         limits: { memoryMib: s.memoryMib, diskMib: s.diskMib, cpuPercent: s.cpuPercent },
         lastState: s.lastState,
         lastUtilization: parseUsage(s.lastUtilization),
@@ -87,6 +88,7 @@ export const serversRouter = router({
         id: a.id,
         ip: a.ip,
         port: a.port,
+        address: connectAddress(a, s.node),
         isDefault: a.id === s.defaultAllocationId,
       })),
       limits: {

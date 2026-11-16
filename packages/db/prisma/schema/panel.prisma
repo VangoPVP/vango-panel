@@ -24,8 +24,11 @@ model Allocation {
   id        String   @id @default(uuid()) @db.Uuid
   nodeId    String   @db.Uuid
   node      Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  /// Bind IP handed to Docker (0.0.0.0 = all interfaces).
   ip        String
   port      Int
+  /// What users connect to. Null = node's SFTP host for wildcard binds, otherwise `ip`.
+  ipAlias   String?
   serverId  String?  @db.Uuid
   server    Server?  @relation("ServerAllocations", fields: [serverId], references: [id], onDelete: SetNull)
   defaultOf Server?  @relation("DefaultAllocation")

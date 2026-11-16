@@ -79,7 +79,7 @@ function CreateNode() {
     name: "",
     url: "http://127.0.0.1:8080",
     publicUrl: "",
-    sftpHost: "127.0.0.1",
+    sftpHost: "",
     sftpPort: 2022,
     memoryMib: 0,
     diskMib: 0,
@@ -125,8 +125,16 @@ function CreateNode() {
               placeholder="https://node-1.example.proxy.netbird.io"
             />
           </Field>
-          <Field label="SFTP host">
-            <Input required value={form.sftpHost} onChange={(e) => set("sftpHost", e.target.value)} />
+          <Field
+            label="Public host"
+            hint="IP or hostname users connect to for SFTP and for servers bound to 0.0.0.0."
+          >
+            <Input
+              required
+              value={form.sftpHost}
+              onChange={(e) => set("sftpHost", e.target.value)}
+              placeholder="192.168.2.108"
+            />
           </Field>
           <Field label="SFTP port">
             <NumberInput value={form.sftpPort} onChange={(v) => set("sftpPort", v)} />

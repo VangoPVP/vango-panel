@@ -1,13 +1,29 @@
 import { TRPCError } from "@trpc/server";
 import prisma from "@vango-panel/db";
 import { env, panelOrigins } from "@vango-panel/env/server";
-import { decryptSecret, encryptSecret, nodeConfigYaml, randomToken, WingsError } from "@vango-panel/wings";
+import {
+  connectAddress,
+  decryptSecret,
+  encryptSecret,
+  nodeConfigYaml,
+  randomToken,
+  WingsError,
+} from "@vango-panel/wings";
 import { z } from "zod";
 
 import { adminProcedure, router } from "../../index";
-import { logActivity, uuidRe, wingsFor } from "../../lib/wings";
+import { logActivity, trySync, uuidRe, wingsFor } from "../../lib/wings";
 
 const idInput = z.object({ id: z.string().regex(uuidRe) });
+
+const bindIp = z.union([z.ipv4(), z.ipv6()]);
+// Hostname or IP shown to users instead of the bind IP. Empty string clears it.
+const ipAlias = z
+  .string()
+  .trim()
+  .max(253)
+  .regex(/^[A-Za-z0-9.:\-[\]]*$/, "Alias must be a hostname or IP address")
+  .transform((v) => v || null);
 
 const nodeFields = z.object({
   name: z.string().trim().min(1).max(64),
@@ -101,8 +117,8 @@ export const nodesRouter = router({
       },
     });
     if (!n) throw new TRPCError({ code: "NOT_FOUND", message: "Node not found" });
-    const { tokenEncrypted: _secret, ...rest } = n;
-    return rest;
+    const { tokenEncrypted: _secret, allocations, ...rest } = n;
+    return { ...rest, allocations: allocations.map((a) => ({ ...a, address: connectAddress(a, n) })) };
   }),
 
   system: adminProcedure.input(idInput).query(async ({ input }) => {
@@ -159,17 +175,50 @@ export const nodesRouter = router({
     .input(
       z.object({
         nodeId: z.string().regex(uuidRe),
-        ip: z.union([z.ipv4(), z.ipv6()]),
+        ip: bindIp,
+        ipAlias: ipAlias.optional(),
         ports: z.string().min(1).max(2000),
       }),
     )
     .mutation(async ({ input }) => {
       const ports = parsePorts(input.ports);
       const r = await prisma.allocation.createMany({
-        data: ports.map((port) => ({ nodeId: input.nodeId, ip: input.ip, port })),
+        data: ports.map((port) => ({ nodeId: input.nodeId, ip: input.ip, ipAlias: input.ipAlias ?? null, port })),
         skipDuplicates: true,
       });
       return { created: r.count, skipped: ports.length - r.count };
+    }),
+
+  updateAllocation: adminProcedure
+    .input(z.object({ id: z.string().regex(uuidRe), ip: bindIp.optional(), ipAlias: ipAlias.optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const before = await prisma.allocation.findUnique({
+        where: { id: input.id },
+        include: { server: { select: { id: true, node: true } } },
+      });
+      if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "Allocation not found" });
+      try {
+        await prisma.allocation.update({
+          where: { id: input.id },
+          data: { ip: input.ip, ipAlias: input.ipAlias },
+        });
+      } catch (e) {
+        if (typeof e === "object" && e && "code" in e && e.code === "P2002") {
+          throw new TRPCError({ code: "CONFLICT", message: `${input.ip}:${before.port} already exists on this node` });
+        }
+        throw e;
+      }
+      await logActivity({
+        serverId: before.server?.id ?? null,
+        userId: ctx.session.user.id,
+        event: "admin:allocation.updated",
+        metadata: { allocation: before.id, ip: input.ip ?? before.ip, ipAlias: input.ipAlias ?? before.ipAlias },
+        ip: ctx.ip,
+      });
+      // The bind IP is part of the server's docker config; push it to wings. It applies on the next start.
+      if (input.ip === undefined || input.ip === before.ip || !before.server) return { rebound: false as const };
+      const sync = await trySync(before.server);
+      return { rebound: true as const, ...sync };
     }),
 
   deleteAllocation: adminProcedure.input(idInput).mutation(async ({ input }) => {

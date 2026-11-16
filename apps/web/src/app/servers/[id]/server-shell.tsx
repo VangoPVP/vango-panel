@@ -89,7 +89,7 @@ function ShellInner({
               {server.name} <StateBadge state={shown} />
             </h1>
             <p className="text-muted-foreground text-xs">
-              {def ? `${def.ip}:${def.port}` : "no allocation"} · {server.node.name} · {server.template.name}
+              {def ? def.address : "no allocation"} · {server.node.name} · {server.template.name}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
