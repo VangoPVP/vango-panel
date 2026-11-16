@@ -29,6 +29,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "start": "turbo -F web start",
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "db:push": "turbo -F @vango-panel/db db:push",

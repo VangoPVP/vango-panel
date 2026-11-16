@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   reactCompiler: true,
   allowedDevOrigins: [...new Set(panelHosts)],
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
 };
 
 export default nextConfig;

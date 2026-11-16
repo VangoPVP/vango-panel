@@ -8,19 +8,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@vango-panel/ui/components/dropdown-menu";
-import { Skeleton } from "@vango-panel/ui/components/skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { authClient } from "@/lib/auth-client";
+import { authClient, type Session } from "@/lib/auth-client";
 
-export default function UserMenu() {
+export default function UserMenu({ session }: { session: Session | null | undefined }) {
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
-
-  if (isPending) {
-    return <Skeleton className="h-9 w-24" />;
-  }
 
   if (!session) {
     return (

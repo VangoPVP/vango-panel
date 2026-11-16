@@ -1,5 +1,7 @@
+import { auth } from "@vango-panel/auth";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 
 import "../index.css";
 import Header from "@/components/header";
@@ -13,6 +15,8 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  // Only used by the console / code editor, so don't block first paint on it.
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -20,17 +24,18 @@ export const metadata: Metadata = {
   description: "vango-panel",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth.api.getSession({ headers: await headers() });
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
           <div className="grid grid-rows-[auto_1fr] h-svh">
-            <Header />
+            <Header initialSession={session} />
             {children}
           </div>
         </Providers>

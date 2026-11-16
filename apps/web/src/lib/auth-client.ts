@@ -5,3 +5,5 @@ import { createAuthClient } from "better-auth/react";
 export const authClient = createAuthClient({
   plugins: [inferAdditionalFields<typeof auth>(), usernameClient()],
 });
+
+export type Session = typeof authClient.$Infer.Session;

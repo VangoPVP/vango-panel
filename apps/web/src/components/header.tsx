@@ -2,13 +2,16 @@
 import { isAdminRole } from "@vango-panel/auth/roles";
 import Link from "next/link";
 
-import { authClient } from "@/lib/auth-client";
+import { authClient, type Session } from "@/lib/auth-client";
 
 import { ModeToggle } from "./mode-toggle";
 import UserMenu from "./user-menu";
 
-export default function Header() {
-  const { data: session } = authClient.useSession();
+export default function Header({ initialSession }: { initialSession: Session | null }) {
+  const { data, isPending } = authClient.useSession();
+  // Server-rendered session covers the first paint; the client hook takes over once it resolves
+  // (and keeps the header in sync after sign-in / sign-out).
+  const session = isPending ? initialSession : data;
   const links = session
     ? ([
         { to: "/dashboard", label: "Servers" },
@@ -30,7 +33,7 @@ export default function Header() {
         </nav>
         <div className="flex items-center gap-2">
           <ModeToggle />
-          <UserMenu />
+          <UserMenu session={session} />
         </div>
       </div>
       <hr />
