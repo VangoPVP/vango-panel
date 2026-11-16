@@ -11,7 +11,7 @@ import { toast } from "sonner";
 
 import { Field, NumberInput, PageShell, Table } from "@/components/form";
 import { NodeStatus } from "@/components/node-status";
-import { formatMib } from "@/lib/format";
+import { formatBytes, formatMib } from "@/lib/format";
 import { trpc } from "@/utils/trpc";
 
 export default function NodesPage() {
@@ -50,10 +50,11 @@ export default function NodesPage() {
                 <NodeStatus id={n.id} />
               </td>
               <td>
-                {formatMib(n.allocatedMemoryMib)} / {n.memoryMib ? formatMib(n.memoryMib) : "∞"}
+                {/* Used amounts are plain sizes: formatMib treats 0 as "Unlimited" (a limit convention). */}
+                {formatBytes(n.allocatedMemoryMib * 1024 * 1024)} / {n.memoryMib ? formatMib(n.memoryMib) : "∞"}
               </td>
               <td>
-                {formatMib(n.allocatedDiskMib)} / {n.diskMib ? formatMib(n.diskMib) : "∞"}
+                {formatBytes(n.allocatedDiskMib * 1024 * 1024)} / {n.diskMib ? formatMib(n.diskMib) : "∞"}
               </td>
               <td>{n.servers}</td>
               <td>{n.allocations}</td>
