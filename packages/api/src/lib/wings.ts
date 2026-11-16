@@ -1,7 +1,14 @@
 import { TRPCError } from "@trpc/server";
 import { isAdminRole } from "@vango-panel/auth/roles";
 import prisma, { type Prisma } from "@vango-panel/db";
-import { effectivePermissions, hasPermission, type NodeRef, WingsClient, WingsError } from "@vango-panel/wings";
+import {
+  effectivePermissions,
+  hasPermission,
+  type NodeRef,
+  SERVER_PERMISSIONS,
+  WingsClient,
+  WingsError,
+} from "@vango-panel/wings";
 
 export async function callWings<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -69,6 +76,13 @@ export async function loadAccessibleServer(user: SessionUser, serverId: string) 
     : null;
   if (!server || !permissions) throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
   return { server, permissions };
+}
+
+/** Permissions put into a wings websocket JWT for this user. */
+export function websocketPermissions(user: SessionUser, permissions: string[]): string[] {
+  if (isAdminRole(user.role)) return ["*"];
+  if (permissions.includes("*")) return [...SERVER_PERMISSIONS, "admin.websocket.install"];
+  return permissions;
 }
 
 export function requirePermission(permissions: string[], perm: string) {

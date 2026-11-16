@@ -118,7 +118,7 @@ function CreateNode() {
           </Field>
           <Field
             label="Browser URL"
-            hint="How browsers reach wings (console, uploads, downloads), e.g. a NetBird proxy URL. Empty = Daemon URL."
+            hint="Optional. Leave empty and the panel relays the console, uploads and downloads itself, so the node only needs to be reachable from the panel. Set it only if browsers should connect to wings directly."
           >
             <Input
               value={form.publicUrl}

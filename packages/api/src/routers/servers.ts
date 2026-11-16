@@ -9,14 +9,23 @@ import {
   parseTemplateVariables,
   powerActionSchema,
   resourceUsageSchema,
-  SERVER_PERMISSIONS,
   signWebsocketToken,
+  usesPanelRelay,
   WingsError,
 } from "@vango-panel/wings";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
-import { callWings, loadAccessibleServer, logActivity, requirePermission, trySync, uuidRe, wingsFor } from "../lib/wings";
+import {
+  callWings,
+  loadAccessibleServer,
+  logActivity,
+  requirePermission,
+  trySync,
+  uuidRe,
+  websocketPermissions,
+  wingsFor,
+} from "../lib/wings";
 import { serverDatabasesRouter } from "./server-databases";
 import { serverFilesRouter } from "./server-files";
 import { serverStartupRouter } from "./server-startup";
@@ -174,20 +183,16 @@ export const serversRouter = router({
   websocket: protectedProcedure.input(idInput).mutation(async ({ ctx, input }) => {
     const { server, permissions } = await loadAccessibleServer(ctx.session.user, input.id);
     requirePermission(permissions, "websocket.connect");
+    // Browser can't reach this node: the console goes through /api/relay/servers/:id/console.
+    if (usesPanelRelay(server.node)) return { mode: "relay" as const };
     const client = wingsFor(server.node);
-    const wsPermissions =
-      isAdminRole(ctx.session.user.role)
-        ? ["*"]
-        : permissions.includes("*")
-          ? [...SERVER_PERMISSIONS, "admin.websocket.install"]
-          : permissions;
     const { token, expiresAt } = signWebsocketToken({
       nodeToken: client.nodeToken,
       userId: ctx.session.user.id,
       serverId: server.id,
-      permissions: wsPermissions,
+      permissions: websocketPermissions(ctx.session.user, permissions),
     });
-    return { socket: client.websocketUrl(server.id), token, expiresAt };
+    return { mode: "direct" as const, socket: client.websocketUrl(server.id), token, expiresAt };
   }),
 
   acceptEula: protectedProcedure.input(idInput).mutation(async ({ ctx, input }) => {

@@ -121,7 +121,10 @@ function EditNode({ node }: { node: NodeData }) {
           <Field label="Daemon URL" hint="How the panel reaches wings.">
             <Input value={form.url} onChange={(e) => set("url", e.target.value)} />
           </Field>
-          <Field label="Browser URL" hint="How browsers reach wings. Empty = Daemon URL.">
+          <Field
+            label="Browser URL"
+            hint="Optional. Empty = the panel relays console and file transfers (node only needs to be reachable from the panel)."
+          >
             <Input
               value={form.publicUrl}
               onChange={(e) => set("publicUrl", e.target.value)}

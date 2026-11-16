@@ -29,6 +29,17 @@ const TIMEOUT_MS = 10_000;
 
 export type NodeRef = Pick<Node, "url" | "tokenEncrypted"> & Partial<Pick<Node, "publicUrl">>;
 
+/** Size of each upload chunk the browser sends (the relay buffers one chunk at a time). */
+export const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Nodes without a Browser URL are never contacted by browsers: the panel relays the console,
+ * uploads and downloads over its own (https) origin and reaches wings on the Daemon URL.
+ */
+export function usesPanelRelay(node: Pick<Node, "publicUrl">): boolean {
+  return !node.publicUrl;
+}
+
 export class WingsClient {
   /** Panel → wings (server-side requests). */
   private readonly base: string;
@@ -48,6 +59,20 @@ export class WingsClient {
 
   websocketUrl(serverId: string) {
     return `${this.publicBase.replace(/^http/, "ws")}/api/servers/${serverId}/ws`;
+  }
+
+  /** Panel → wings websocket (used by the console relay). */
+  internalWebsocketUrl(serverId: string) {
+    return `${this.base.replace(/^http/, "ws")}/api/servers/${serverId}/ws`;
+  }
+
+  /** Panel → wings download/upload endpoints (used by the file relay). */
+  internalDownloadUrl(token: string) {
+    return `${this.base}/download/file?token=${encodeURIComponent(token)}`;
+  }
+
+  internalUploadChunkUrl() {
+    return `${this.base}/upload/chunk`;
   }
 
   private async request(method: string, path: string, body?: unknown): Promise<Response> {

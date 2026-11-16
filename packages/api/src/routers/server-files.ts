@@ -8,6 +8,8 @@ import {
   normalizePath,
   signFileDownloadToken,
   signUploadToken,
+  UPLOAD_CHUNK_BYTES,
+  usesPanelRelay,
 } from "@vango-panel/wings";
 import { z } from "zod";
 
@@ -165,6 +167,9 @@ export const serverFilesRouter = router({
     const { server, wings } = await fileServer(ctx.session.user, input.id, "file.read-content");
     const token = signFileDownloadToken({ nodeToken: wings.nodeToken, serverId: server.id, filePath: input.file });
     await audit(ctx, server.id, "server:file.download", { file: input.file });
+    if (usesPanelRelay(server.node)) {
+      return { url: `/api/relay/servers/${server.id}/download?token=${encodeURIComponent(token)}` };
+    }
     return { url: wings.downloadUrl(token) };
   }),
 
@@ -175,6 +180,7 @@ export const serverFilesRouter = router({
       serverId: server.id,
       userId: ctx.session.user.id,
     });
-    return { url: wings.uploadChunkUrl(), token, expiresAt, chunkSize: 8 * 1024 * 1024 };
+    const url = usesPanelRelay(server.node) ? `/api/relay/servers/${server.id}/upload` : wings.uploadChunkUrl();
+    return { url, token, expiresAt, chunkSize: UPLOAD_CHUNK_BYTES };
   }),
 });
