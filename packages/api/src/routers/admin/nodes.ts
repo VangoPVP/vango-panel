@@ -12,6 +12,7 @@ import {
 import { z } from "zod";
 
 import { adminProcedure, router } from "../../index";
+import { syncNodeDependentHosts, syncWarning } from "../../lib/database-sync";
 import { logActivity, trySync, uuidRe, wingsFor } from "../../lib/wings";
 
 const idInput = z.object({ id: z.string().regex(uuidRe) });
@@ -147,13 +148,17 @@ export const nodesRouter = router({
     const { token: _t, ...creds } = newCredentials();
     const n = await uniqueName(() => prisma.node.create({ data: { ...input, ...creds } }));
     await logActivity({ userId: ctx.session.user.id, event: "admin:node.created", metadata: { node: n.id }, ip: ctx.ip });
-    return { id: n.id };
+    // The new node's IP gets an account on every database (containers there connect from it).
+    return { id: n.id, warning: syncWarning(await syncNodeDependentHosts()) };
   }),
 
   update: adminProcedure.input(idInput.extend(nodeFields.shape)).mutation(async ({ input }) => {
     const { id, ...data } = input;
+    const before = await prisma.node.findUnique({ where: { id }, select: { sftpHost: true } });
     await uniqueName(() => prisma.node.update({ where: { id }, data }));
-    return { ok: true };
+    // A changed public host changes which IP the node's containers connect to databases from.
+    const warning = before?.sftpHost === data.sftpHost ? undefined : syncWarning(await syncNodeDependentHosts());
+    return { ok: true, warning };
   }),
 
   rotateToken: adminProcedure.input(idInput).mutation(async ({ ctx, input }) => {
@@ -168,7 +173,7 @@ export const nodesRouter = router({
     if (count) throw new TRPCError({ code: "CONFLICT", message: `Node still has ${count} server(s)` });
     await prisma.node.delete({ where: { id: input.id } });
     await logActivity({ userId: ctx.session.user.id, event: "admin:node.deleted", metadata: { node: input.id }, ip: ctx.ip });
-    return { ok: true };
+    return { ok: true, warning: syncWarning(await syncNodeDependentHosts()) };
   }),
 
   addAllocations: adminProcedure

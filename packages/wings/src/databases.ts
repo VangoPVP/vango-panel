@@ -2,6 +2,8 @@
 // can use it too. Everything that ends up as an SQL identifier is restricted to [a-z0-9_] here, and
 // escaped again at the SQL layer.
 
+import { isLoopbackIp, isWildcardIp } from "./allocations";
+
 /** User-chosen part of a database name, e.g. "perms" → s1a2b3c4d_perms. */
 export const DATABASE_SUFFIX_RE = /^[a-z0-9_]{1,48}$/;
 /** MySQL account host part: %, an IP / IP pattern (172.31.250.%), or a hostname. */
@@ -41,6 +43,37 @@ export function databaseUsernameFor(serverId: string, random: string): string {
 
 export function isValidDatabaseRemote(remote: string): boolean {
   return DATABASE_REMOTE_RE.test(remote);
+}
+
+/** "172.31.250.%, 192.168.2.113" → ["172.31.250.%", "192.168.2.113"] (trimmed, deduped, order kept). */
+export function parseRemoteList(input: string): string[] {
+  return [...new Set(input.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean))];
+}
+
+export function remoteListError(input: string): string | null {
+  const list = parseRemoteList(input);
+  if (!list.length) return "Enter at least one source, e.g. 172.31.250.%";
+  const bad = list.find((r) => !isValidDatabaseRemote(r));
+  return bad ? `Not a valid IP, IP pattern or hostname: ${bad}` : null;
+}
+
+/**
+ * Every source database users must be able to connect from: the host's manual list, plus each
+ * node's public host when allowAllNodes is on (containers on a remote node reach the database from
+ * that node's IP). Loopback/wildcard/invalid node hosts are skipped.
+ */
+export function allowedSources(
+  host: { allowedRemote: string; allowAllNodes: boolean },
+  nodes: { sftpHost: string }[],
+): string[] {
+  const out = parseRemoteList(host.allowedRemote).filter(isValidDatabaseRemote);
+  if (host.allowAllNodes) {
+    for (const n of nodes) {
+      const h = n.sftpHost.trim();
+      if (h && isValidDatabaseRemote(h) && !isLoopbackIp(h) && !isWildcardIp(h)) out.push(h);
+    }
+  }
+  return [...new Set(out)];
 }
 
 export function jdbcUrl(db: { host: string; port: number; name: string }): string {

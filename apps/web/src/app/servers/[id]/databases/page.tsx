@@ -12,6 +12,7 @@ import {
 } from "@vango-panel/ui/components/dialog";
 import { Input } from "@vango-panel/ui/components/input";
 import { Skeleton } from "@vango-panel/ui/components/skeleton";
+import { isLoopbackIp, isWildcardIp } from "@vango-panel/wings/allocations";
 import { databaseNameFor, databaseSuffixError } from "@vango-panel/wings/databases";
 import { Copy, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -20,7 +21,7 @@ import { toast } from "sonner";
 import { Field } from "@/components/form";
 import { type RouterOutputs, trpc } from "@/utils/trpc";
 
-import { useServerShell } from "../server-shell";
+import { Banner, useServerShell } from "../server-shell";
 
 type Data = RouterOutputs["servers"]["databases"]["list"];
 type Database = Data["databases"][number];
@@ -41,9 +42,16 @@ export default function DatabasesPage() {
   if (list.isError) return <p className="text-destructive text-sm">{list.error.message}</p>;
   const d = list.data;
   const full = d.databases.length >= d.limit;
+  const unreachable = d.databases.some((db) => isLoopbackIp(db.host) || isWildcardIp(db.host));
 
   return (
     <div className="grid gap-4">
+      {unreachable ? (
+        <Banner tone="error">
+          The database host is configured as a loopback address, which your server can't reach from inside its container.
+          An administrator needs to set "Servers connect to" under Admin → Databases (e.g. 192.168.2.108).
+        </Banner>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-muted-foreground text-xs">
           {d.databases.length} of {d.limit} database{d.limit === 1 ? "" : "s"} used. Connect from your server using the
@@ -105,7 +113,7 @@ function DatabaseCard({ db, data, onChanged }: { db: Database; data: Data; onCha
       <CardHeader className="flex flex-row items-start justify-between gap-2">
         <div>
           <CardTitle className="font-mono">{db.name}</CardTitle>
-          <CardDescription>Connections allowed from {db.remote}</CardDescription>
+          <CardDescription>Connections allowed from {db.remotes.join(", ")}</CardDescription>
         </div>
         <div className="flex gap-1">
           {data.canUpdate ? (

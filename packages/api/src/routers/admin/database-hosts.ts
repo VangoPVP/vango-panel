@@ -1,9 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import prisma from "@vango-panel/db";
-import { DATABASE_REMOTE_RE, encryptSecret } from "@vango-panel/wings";
+import { encryptSecret, isLoopbackIp, isWildcardIp, parseRemoteList, remoteListError } from "@vango-panel/wings";
 import { z } from "zod";
 
 import { adminProcedure, router } from "../../index";
+import { sourcesForHost, syncDatabaseHost, syncWarning } from "../../lib/database-sync";
 import { testHost } from "../../lib/mysql";
 import { logActivity, uuidRe } from "../../lib/wings";
 
@@ -24,7 +25,16 @@ const hostFields = z.object({
     .union([z.literal(""), hostname])
     .nullish()
     .transform((v) => v || null),
-  allowedRemote: z.string().trim().regex(DATABASE_REMOTE_RE, "e.g. % or 172.31.250.%").default("%"),
+  // Stored comma-separated, e.g. "172.31.250.%, 192.168.2.50".
+  allowedRemote: z
+    .string()
+    .max(2000)
+    .superRefine((v, ctx) => {
+      const err = remoteListError(v);
+      if (err) ctx.addIssue({ code: "custom", message: err });
+    })
+    .transform((v) => parseRemoteList(v).join(", ")),
+  allowAllNodes: z.boolean().default(true),
   nodeId: z
     .union([z.literal(""), z.string().regex(uuidRe)])
     .nullish()
@@ -37,6 +47,19 @@ function uniqueName(e: unknown): never {
     throw new TRPCError({ code: "CONFLICT", message: "A database host with that name already exists" });
   }
   throw e;
+}
+
+// Game servers run in containers: a loopback/wildcard address would point at the container itself.
+function requireReachableFromContainers(data: { host: string; connectHost: string | null }) {
+  const shown = data.connectHost ?? data.host;
+  if (isLoopbackIp(shown) || isWildcardIp(shown)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: data.connectHost
+        ? `"Servers connect to" can't be ${shown}: inside a container that is the container itself. Use the database machine's LAN IP, e.g. 192.168.2.108.`
+        : `Host is ${data.host}, which servers can't reach from inside their container. Set "Servers connect to" to the database machine's LAN IP (e.g. 192.168.2.108).`,
+    });
+  }
 }
 
 async function requireGrant(host: { host: string; port: number; username: string }, password: string) {
@@ -55,25 +78,33 @@ export const databaseHostsRouter = router({
       orderBy: { name: "asc" },
       include: { node: { select: { id: true, name: true } }, _count: { select: { databases: true } } },
     });
-    return hosts.map(({ passwordEncrypted: _secret, _count, ...h }) => ({ ...h, databases: _count.databases }));
+    return Promise.all(
+      hosts.map(async ({ passwordEncrypted: _secret, _count, ...h }) => ({
+        ...h,
+        databases: _count.databases,
+        sources: await sourcesForHost(h),
+      })),
+    );
   }),
 
   create: adminProcedure
     .input(hostFields.extend({ password: z.string().min(1).max(512) }))
     .mutation(async ({ ctx, input }) => {
       const { password, ...data } = input;
+      requireReachableFromContainers(data);
       await requireGrant(data, password);
       const h = await prisma.databaseHost
         .create({ data: { ...data, maxDatabases: data.maxDatabases ?? null, passwordEncrypted: encryptSecret(password) } })
         .catch(uniqueName);
       await logActivity({ userId: ctx.session.user.id, event: "admin:database-host.created", metadata: { host: h.id }, ip: ctx.ip });
-      return { id: h.id };
+      return { id: h.id, warning: undefined as string | undefined };
     }),
 
   update: adminProcedure
     .input(idInput.extend(hostFields.shape).extend({ password: z.string().max(512).optional() }))
     .mutation(async ({ ctx, input }) => {
       const { id, password, ...data } = input;
+      requireReachableFromContainers(data);
       if (password) await requireGrant(data, password);
       await prisma.databaseHost
         .update({
@@ -86,8 +117,21 @@ export const databaseHostsRouter = router({
         })
         .catch(uniqueName);
       await logActivity({ userId: ctx.session.user.id, event: "admin:database-host.updated", metadata: { host: id }, ip: ctx.ip });
-      return { ok: true };
+      // Allowed sources may have changed: bring existing databases' users in line.
+      return { ok: true, warning: syncWarning([await syncDatabaseHost(id)]) };
     }),
+
+  /** "Sync users" button: re-create/refresh/drop accounts so MariaDB matches the panel. */
+  sync: adminProcedure.input(idInput).mutation(async ({ ctx, input }) => {
+    const r = await syncDatabaseHost(input.id);
+    await logActivity({
+      userId: ctx.session.user.id,
+      event: "admin:database-host.synced",
+      metadata: { host: input.id, synced: r.synced, failed: r.failed.length },
+      ip: ctx.ip,
+    });
+    return { synced: r.synced, failed: r.failed, warning: syncWarning([r]) };
+  }),
 
   test: adminProcedure.input(idInput).mutation(async ({ input }) => {
     const h = await prisma.databaseHost.findUnique({ where: { id: input.id } });

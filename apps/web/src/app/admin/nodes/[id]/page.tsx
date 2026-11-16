@@ -95,8 +95,9 @@ function EditNode({ node }: { node: NodeData }) {
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const update = useMutation(
     trpc.admin.nodes.update.mutationOptions({
-      onSuccess: () => {
-        toast.success("Saved");
+      onSuccess: (r) => {
+        if (r.warning) toast.warning(`Saved. ${r.warning}`);
+        else toast.success("Saved");
         qc.invalidateQueries({ queryKey: trpc.admin.nodes.pathKey() });
       },
       onError: (e) => toast.error(e.message),
@@ -386,7 +387,8 @@ function DangerActions({ node }: { node: NodeData }) {
   );
   const del = useMutation(
     trpc.admin.nodes.delete.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (r) => {
+        if (r.warning) toast.warning(r.warning);
         qc.invalidateQueries({ queryKey: trpc.admin.nodes.pathKey() });
         router.push("/admin/nodes");
       },

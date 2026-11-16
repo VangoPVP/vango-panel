@@ -1,11 +1,14 @@
 import { expect, test } from "bun:test";
 
 import {
+  allowedSources,
   databaseNameFor,
   databaseSuffixError,
   databaseUsernameFor,
   isValidDatabaseRemote,
   jdbcUrl,
+  parseRemoteList,
+  remoteListError,
 } from "./databases";
 
 const SERVER = "BE9D5BF5-1234-4abc-9def-0123456789ab";
@@ -38,6 +41,35 @@ test("usernames fit MySQL's 32-char limit", () => {
 test("remote host patterns", () => {
   for (const ok of ["%", "172.31.250.%", "127.0.0.1", "::1", "db-host.local"]) expect(isValidDatabaseRemote(ok)).toBe(true);
   for (const bad of ["", "a'b", "a b", "x@y", "a`b"]) expect(isValidDatabaseRemote(bad)).toBe(false);
+});
+
+test("remote lists", () => {
+  expect(parseRemoteList(" 172.31.250.%, 192.168.2.113 ,172.31.250.%\n10.0.0.1")).toEqual([
+    "172.31.250.%",
+    "192.168.2.113",
+    "10.0.0.1",
+  ]);
+  expect(parseRemoteList("")).toEqual([]);
+  expect(remoteListError("172.31.250.%, 192.168.2.%")).toBeNull();
+  expect(remoteListError("")).not.toBeNull();
+  expect(remoteListError("172.31.250.%, a'b")).toContain("a'b");
+});
+
+test("allowed sources include every node's public host", () => {
+  const nodes = [
+    { sftpHost: "192.168.2.108" },
+    { sftpHost: "192.168.2.113" },
+    { sftpHost: "127.0.0.1" }, // loopback: skipped
+    { sftpHost: "0.0.0.0" }, // wildcard: skipped
+    { sftpHost: "bad host" }, // invalid: skipped
+    { sftpHost: "192.168.2.113" }, // duplicate
+  ];
+  expect(allowedSources({ allowedRemote: "172.31.250.%", allowAllNodes: true }, nodes)).toEqual([
+    "172.31.250.%",
+    "192.168.2.108",
+    "192.168.2.113",
+  ]);
+  expect(allowedSources({ allowedRemote: "172.31.250.%", allowAllNodes: false }, nodes)).toEqual(["172.31.250.%"]);
 });
 
 test("jdbc url", () => {

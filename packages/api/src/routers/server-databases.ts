@@ -4,6 +4,7 @@ import { randomInt } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import prisma from "@vango-panel/db";
 import {
+  allowedSources,
   databaseNameFor,
   databaseSuffixError,
   databaseUsernameFor,
@@ -15,6 +16,7 @@ import {
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
+import { sourcesForHost } from "../lib/database-sync";
 import { createDatabase, dropDatabase, rotatePassword } from "../lib/mysql";
 import { loadAccessibleServer, logActivity, requirePermission, uuidRe } from "../lib/wings";
 
@@ -56,6 +58,7 @@ export const serverDatabasesRouter = router({
       orderBy: { createdAt: "asc" },
       include: { host: true },
     });
+    const nodes = await prisma.node.findMany({ select: { sftpHost: true } });
     return {
       limit: server.databaseLimit,
       canCreate: hasPermission(permissions, "database.create"),
@@ -70,7 +73,7 @@ export const serverDatabasesRouter = router({
           username: d.username,
           host,
           port: d.host.port,
-          remote: d.remote,
+          remotes: allowedSources(d.host, nodes),
           jdbc: jdbcUrl({ host, port: d.host.port, name: d.name }),
           password: showPasswords ? decryptSecret(d.passwordEncrypted) : null,
           createdAt: d.createdAt,
@@ -115,9 +118,9 @@ export const serverDatabasesRouter = router({
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No database host is available for this server" });
       }
 
-      const spec = { name, username: databaseUsernameFor(server.id, generateUsernameRandom()), remote: host.allowedRemote };
+      const spec = { name, username: databaseUsernameFor(server.id, generateUsernameRandom()) };
       const password = generateDatabasePassword();
-      await createDatabase(host, spec, password);
+      await createDatabase(host, spec, await sourcesForHost(host), password);
       try {
         const row = await prisma.serverDatabase.create({
           data: { serverId: server.id, hostId: host.id, ...spec, passwordEncrypted: encryptSecret(password) },
@@ -141,7 +144,7 @@ export const serverDatabasesRouter = router({
     requirePermission(permissions, "database.update");
     const db = await loadDatabase(server.id, input.databaseId);
     const password = generateDatabasePassword();
-    await rotatePassword(db.host, db, password);
+    await rotatePassword(db.host, db, await sourcesForHost(db.host), password);
     await prisma.serverDatabase.update({ where: { id: db.id }, data: { passwordEncrypted: encryptSecret(password) } });
     await logActivity({
       serverId: server.id,

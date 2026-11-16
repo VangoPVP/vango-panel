@@ -2,7 +2,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@vango-panel/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@vango-panel/ui/components/card";
+import { Checkbox } from "@vango-panel/ui/components/checkbox";
 import { Input } from "@vango-panel/ui/components/input";
+import { Label } from "@vango-panel/ui/components/label";
+import { remoteListError } from "@vango-panel/wings/databases";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -19,6 +22,7 @@ type Form = {
   password: string;
   connectHost: string;
   allowedRemote: string;
+  allowAllNodes: boolean;
   nodeId: string;
   maxDatabases: number;
 };
@@ -31,16 +35,18 @@ const EMPTY: Form = {
   password: "",
   connectHost: "",
   allowedRemote: "172.31.250.%",
+  allowAllNodes: true,
   nodeId: "",
   maxDatabases: 0,
 };
+
+const onError = (e: { message: string }) => toast.error(e.message);
 
 export default function DatabaseHostsPage() {
   const qc = useQueryClient();
   const hosts = useQuery(trpc.admin.databaseHosts.list.queryOptions());
   const [editing, setEditing] = useState<Host | "new" | null>(null);
   const invalidate = () => qc.invalidateQueries({ queryKey: trpc.admin.databaseHosts.pathKey() });
-  const onError = (e: { message: string }) => toast.error(e.message);
 
   const test = useMutation(
     trpc.admin.databaseHosts.test.mutationOptions({
@@ -48,6 +54,12 @@ export default function DatabaseHostsPage() {
         r.canGrant
           ? toast.success(`Connected: ${r.version}`)
           : toast.warning(`Connected (${r.version}), but the account lacks GRANT OPTION on *.*`),
+      onError,
+    }),
+  );
+  const sync = useMutation(
+    trpc.admin.databaseHosts.sync.mutationOptions({
+      onSuccess: (r) => (r.warning ? toast.warning(r.warning) : toast.success(`Synced users for ${r.synced} database(s)`)),
       onError,
     }),
   );
@@ -104,7 +116,9 @@ export default function DatabaseHostsPage() {
               <td className="font-mono">
                 {h.connectHost ?? h.host}:{h.port}
               </td>
-              <td className="font-mono">{h.allowedRemote}</td>
+              <td className="font-mono" title={h.allowAllNodes ? "Includes every node's public host" : undefined}>
+                {h.sources.join(", ")}
+              </td>
               <td>{h.node?.name ?? <span className="text-muted-foreground">any</span>}</td>
               <td>
                 {h.databases}
@@ -113,6 +127,15 @@ export default function DatabaseHostsPage() {
               <td className="whitespace-nowrap text-right">
                 <Button variant="ghost" size="xs" disabled={test.isPending} onClick={() => test.mutate({ id: h.id })}>
                   Test
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  disabled={sync.isPending || h.databases === 0}
+                  title="Create/refresh/remove database users so MariaDB matches the allowed sources"
+                  onClick={() => sync.mutate({ id: h.id })}
+                >
+                  Sync users
                 </Button>
                 <Button variant="ghost" size="xs" onClick={() => setEditing(h)}>
                   Edit
@@ -154,22 +177,23 @@ function HostForm({ host, onDone, onCancel }: { host: Host | null; onDone: () =>
           password: "",
           connectHost: host.connectHost ?? "",
           allowedRemote: host.allowedRemote,
+          allowAllNodes: host.allowAllNodes,
           nodeId: host.nodeId ?? "",
           maxDatabases: host.maxDatabases ?? 0,
         }
       : EMPTY,
   );
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
-  const opts = {
-    onSuccess: () => {
-      toast.success(host ? "Saved" : "Database host added");
-      onDone();
-    },
-    onError: (e: { message: string }) => toast.error(e.message),
+  const done = (r: { warning?: string }) => {
+    if (r.warning) toast.warning(r.warning);
+    else toast.success(host ? "Saved" : "Database host added");
+    onDone();
   };
-  const create = useMutation(trpc.admin.databaseHosts.create.mutationOptions(opts));
-  const update = useMutation(trpc.admin.databaseHosts.update.mutationOptions(opts));
+  const create = useMutation(trpc.admin.databaseHosts.create.mutationOptions({ onSuccess: done, onError }));
+  const update = useMutation(trpc.admin.databaseHosts.update.mutationOptions({ onSuccess: done, onError }));
   const pending = create.isPending || update.isPending;
+  const remoteError = remoteListError(form.allowedRemote);
+  const nodeHosts = (nodes.data ?? []).map((n) => n.sftpHost).join(", ");
 
   return (
     <Card size="sm">
@@ -191,6 +215,7 @@ function HostForm({ host, onDone, onCancel }: { host: Host | null; onDone: () =>
               username: form.username,
               connectHost: form.connectHost,
               allowedRemote: form.allowedRemote,
+              allowAllNodes: form.allowAllNodes,
               nodeId: form.nodeId,
               maxDatabases: form.maxDatabases > 0 ? form.maxDatabases : null,
             };
@@ -201,7 +226,7 @@ function HostForm({ host, onDone, onCancel }: { host: Host | null; onDone: () =>
           <Field label="Name">
             <Input required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="mariadb-1" />
           </Field>
-          <Field label="Node" hint="Only servers on this node use it. Empty = any node.">
+          <Field label="Node" hint="Only servers on this node create databases here. Empty = any node.">
             <Select value={form.nodeId} onChange={(e) => set("nodeId", e.target.value)}>
               <option value="">Any node</option>
               {nodes.data?.map((n) => (
@@ -231,22 +256,51 @@ function HostForm({ host, onDone, onCancel }: { host: Host | null; onDone: () =>
           </Field>
           <Field
             label="Servers connect to"
-            hint="Address shown to servers, e.g. the docker gateway 172.31.250.1. Empty = Host. Never localhost."
+            hint="Address shown to servers: the database machine's LAN IP (e.g. 192.168.2.108) works from every node. Never localhost."
           >
-            <Input value={form.connectHost} onChange={(e) => set("connectHost", e.target.value)} placeholder="172.31.250.1" />
+            <Input
+              value={form.connectHost}
+              onChange={(e) => set("connectHost", e.target.value)}
+              placeholder="not set (uses Host)"
+            />
           </Field>
           <Field
             label="Users allowed from"
-            hint="MySQL host part for created users. 172.31.250.% = containers only. Applies to new databases."
+            hint={
+              remoteError ? (
+                <span className="text-destructive">{remoteError}</span>
+              ) : (
+                "Comma-separated MySQL host parts. 172.31.250.% = containers on the database's own machine."
+              )
+            }
           >
-            <Input required value={form.allowedRemote} onChange={(e) => set("allowedRemote", e.target.value)} />
+            <Input
+              required
+              value={form.allowedRemote}
+              onChange={(e) => set("allowedRemote", e.target.value)}
+              aria-invalid={remoteError ? true : undefined}
+            />
           </Field>
+          <div className="grid gap-1 sm:col-span-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="allow-all-nodes"
+                checked={form.allowAllNodes}
+                onCheckedChange={(v) => set("allowAllNodes", v === true)}
+              />
+              <Label htmlFor="allow-all-nodes">Also allow every node</Label>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Adds each node's public host{nodeHosts ? ` (${nodeHosts})` : ""}: containers on other nodes connect from
+              their node's IP. New nodes are added automatically.
+            </p>
+          </div>
           <Field label="Max databases" hint="0 = unlimited">
             <NumberInput value={form.maxDatabases} onChange={(v) => set("maxDatabases", v)} min={0} />
           </Field>
           <div className="flex gap-2 sm:col-span-2">
-            <Button type="submit" disabled={pending}>
-              {pending ? "Testing connection…" : host ? "Save" : "Add host"}
+            <Button type="submit" disabled={pending || !!remoteError}>
+              {pending ? "Saving…" : host ? "Save" : "Add host"}
             </Button>
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel

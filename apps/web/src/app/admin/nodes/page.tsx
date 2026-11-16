@@ -87,9 +87,10 @@ function CreateNode() {
   });
   const create = useMutation(
     trpc.admin.nodes.create.mutationOptions({
-      onSuccess: async ({ id }) => {
+      onSuccess: async ({ id, warning }) => {
         await qc.invalidateQueries({ queryKey: trpc.admin.nodes.list.queryKey() });
         toast.success("Node created. Copy its config.yml to the machine.");
+        if (warning) toast.warning(warning);
         router.push(`/admin/nodes/${id}` as Route);
       },
       onError: (e) => toast.error(e.message),

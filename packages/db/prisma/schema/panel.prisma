@@ -32,8 +32,11 @@ model DatabaseHost {
   passwordEncrypted String
   /// What game servers connect to (e.g. the docker gateway). Null = `host`.
   connectHost       String?
-  /// MySQL host part for created users, e.g. 172.31.250.% (docker subnet only).
+  /// Comma-separated MySQL host parts users may connect from, e.g. "172.31.250.%" (node-1's
+  /// docker subnet). Every database user exists once per allowed source.
   allowedRemote     String   @default("%")
+  /// Also allow every node's public host (remote nodes' containers connect from the node's IP).
+  allowAllNodes     Boolean  @default(true)
   /// Only servers on this node use this host. Null = any node.
   nodeId            String?  @db.Uuid
   node              Node?    @relation(fields: [nodeId], references: [id], onDelete: SetNull)
@@ -57,8 +60,8 @@ model ServerDatabase {
   name              String
   username          String
   passwordEncrypted String
-  /// MySQL host part the user was created with (copied from the host at creation time).
-  remote            String
+  /// Deprecated, unused: allowed sources are derived from the host + nodes and synced to MariaDB.
+  remote            String?
   createdAt         DateTime     @default(now())
 
   @@unique([hostId, name])
