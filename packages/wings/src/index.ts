@@ -2,6 +2,7 @@ export * from "./allocations";
 export * from "./client";
 export * from "./config";
 export * from "./crypto";
+export * from "./databases";
 export * from "./egg";
 export * from "./features";
 export * from "./jwt";

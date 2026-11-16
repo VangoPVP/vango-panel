@@ -76,6 +76,7 @@ const server: Server & { template: Template; allocations: Allocation[]; defaultA
   lastUtilization: null,
   lastReportAt: null,
   installedAt: null,
+  databaseLimit: 0,
   createdAt: now,
   updatedAt: now,
   template,

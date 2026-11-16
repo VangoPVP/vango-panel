@@ -17,6 +17,7 @@ import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
 import { callWings, loadAccessibleServer, logActivity, requirePermission, trySync, uuidRe, wingsFor } from "../lib/wings";
+import { serverDatabasesRouter } from "./server-databases";
 import { serverFilesRouter } from "./server-files";
 import { serverStartupRouter } from "./server-startup";
 
@@ -30,6 +31,7 @@ function parseUsage(json: Prisma.JsonValue | null) {
 export const serversRouter = router({
   files: serverFilesRouter,
   startup: serverStartupRouter,
+  databases: serverDatabasesRouter,
 
   list: protectedProcedure
     .input(z.object({ scope: z.enum(["mine", "others"]).default("mine") }).default({ scope: "mine" }))
@@ -108,6 +110,10 @@ export const serversRouter = router({
         username: `${(ctx.session.user as { username?: string | null }).username ?? "?"}.${s.id.slice(0, 8)}`,
         allowed: hasPermission(permissions, "file.sftp"),
         hasKeys: (await prisma.sshKey.count({ where: { userId: ctx.session.user.id } })) > 0,
+      },
+      databases: {
+        limit: s.databaseLimit,
+        count: await prisma.serverDatabase.count({ where: { serverId: s.id } }),
       },
       lastState: s.lastState,
       lastUtilization: parseUsage(s.lastUtilization),

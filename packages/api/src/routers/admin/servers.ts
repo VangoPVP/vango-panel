@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 
 import { adminProcedure, router } from "../../index";
+import { dropDatabase } from "../../lib/mysql";
 import { callWings, logActivity, toTrpcError, trySync, uuidRe, wingsFor } from "../../lib/wings";
 
 const uuid = z.string().regex(uuidRe);
@@ -210,6 +211,20 @@ export const adminServersRouter = router({
       return trySync(s);
     }),
 
+  setDatabaseLimit: adminProcedure
+    .input(idInput.extend({ limit: z.number().int().min(0).max(100) }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.server.update({ where: { id: input.id }, data: { databaseLimit: input.limit } });
+      await logActivity({
+        serverId: input.id,
+        userId: ctx.session.user.id,
+        event: "admin:server.database-limit",
+        metadata: { limit: input.limit },
+        ip: ctx.ip,
+      });
+      return { ok: true };
+    }),
+
   setSuspended: adminProcedure.input(idInput.extend({ suspended: z.boolean() })).mutation(async ({ ctx, input }) => {
     const s = await prisma.server.update({
       where: { id: input.id },
@@ -253,6 +268,22 @@ export const adminServersRouter = router({
       } else {
         throw toTrpcError(e);
       }
+    }
+    // Drop the server's databases on their hosts. Rows go with the server (cascade).
+    const databases = await prisma.serverDatabase.findMany({ where: { serverId: s.id }, include: { host: true } });
+    const failed: string[] = [];
+    for (const db of databases) {
+      try {
+        await dropDatabase(db.host, db);
+      } catch (e) {
+        if (!input.force) throw e;
+        failed.push(db.name);
+      }
+    }
+    if (failed.length) {
+      warning = [warning, `Couldn't drop database(s) ${failed.join(", ")}; remove them on the database host.`]
+        .filter(Boolean)
+        .join(" ");
     }
     await prisma.server.delete({ where: { id: s.id } });
     await logActivity({

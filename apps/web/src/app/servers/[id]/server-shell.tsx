@@ -124,7 +124,11 @@ function ShellInner({
           </div>
         </div>
 
-        <ServerTabs id={server.id} perms={perms} />
+        <ServerTabs
+          id={server.id}
+          perms={perms}
+          databases={server.databases.limit > 0 || server.databases.count > 0}
+        />
 
         {server.suspended ? (
           <Banner tone="warn">This server is suspended. Contact an administrator.</Banner>
@@ -141,12 +145,18 @@ function ShellInner({
   );
 }
 
-function ServerTabs({ id, perms }: { id: string; perms: string[] }) {
+function ServerTabs({ id, perms, databases }: { id: string; perms: string[]; databases: boolean }) {
   const path = usePathname();
   const base = `/servers/${id}`;
   const tabs = [
     { href: base, label: "Console", active: path === base, show: true },
     { href: `${base}/files`, label: "Files", active: path.startsWith(`${base}/files`), show: can(perms, "file.read") },
+    {
+      href: `${base}/databases`,
+      label: "Databases",
+      active: path.startsWith(`${base}/databases`),
+      show: databases && can(perms, "database.read"),
+    },
     { href: `${base}/startup`, label: "Startup", active: path.startsWith(`${base}/startup`), show: can(perms, "startup.read") },
   ];
   return (

@@ -1,4 +1,5 @@
 import { router } from "../../index";
+import { databaseHostsRouter } from "./database-hosts";
 import { nodesRouter } from "./nodes";
 import { adminServersRouter } from "./servers";
 import { templatesRouter } from "./templates";
@@ -9,4 +10,5 @@ export const adminRouter = router({
   templates: templatesRouter,
   servers: adminServersRouter,
   users: usersRouter,
+  databaseHosts: databaseHostsRouter,
 });

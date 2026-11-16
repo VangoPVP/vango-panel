@@ -16,6 +16,11 @@ export const SERVER_PERMISSIONS = [
   "startup.read",
   "startup.update",
   "startup.docker-image",
+  "database.read",
+  "database.create",
+  "database.update",
+  "database.delete",
+  "database.view-password",
 ] as const;
 
 export type ServerPermission = (typeof SERVER_PERMISSIONS)[number];

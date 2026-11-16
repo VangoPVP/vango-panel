@@ -10,7 +10,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Field, PageShell, Textarea } from "@/components/form";
+import { Field, NumberInput, PageShell, Textarea } from "@/components/form";
 import { displayState, StateBadge } from "@/components/server-state";
 import { type RouterOutputs, trpc } from "@/utils/trpc";
 
@@ -171,6 +171,45 @@ function EditServer({ server: s }: { server: Server }) {
           </Button>
         </div>
       </form>
+      <DatabaseLimitCard id={s.id} limit={s.databaseLimit} />
     </PageShell>
+  );
+}
+
+function DatabaseLimitCard({ id, limit }: { id: string; limit: number }) {
+  const qc = useQueryClient();
+  const [value, setValue] = useState(limit);
+  const save = useMutation(
+    trpc.admin.servers.setDatabaseLimit.mutationOptions({
+      onSuccess: () => {
+        toast.success(value ? `Server can now create ${value} database(s)` : "Databases disabled for this server");
+        qc.invalidateQueries({ queryKey: trpc.admin.servers.pathKey() });
+        qc.invalidateQueries({ queryKey: trpc.servers.get.queryKey({ id }) });
+      },
+      onError: (e) => toast.error(e.message),
+    }),
+  );
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Databases</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save.mutate({ id, limit: value });
+          }}
+        >
+          <Field label="Database limit" hint="0 = disabled (no Databases tab)." className="w-48">
+            <NumberInput value={value} onChange={setValue} min={0} max={100} />
+          </Field>
+          <Button type="submit" variant="outline" disabled={save.isPending || value === limit}>
+            Save limit
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

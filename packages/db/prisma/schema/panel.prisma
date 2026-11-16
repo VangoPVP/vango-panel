@@ -14,10 +14,57 @@ model Node {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  allocations Allocation[]
-  servers     Server[]
+  allocations   Allocation[]
+  servers       Server[]
+  databaseHosts DatabaseHost[]
 
   @@map("node")
+}
+
+/// A MariaDB/MySQL server the panel provisions per-server databases on.
+model DatabaseHost {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String   @unique
+  /// How the panel connects (e.g. 127.0.0.1 when MariaDB runs next to the panel).
+  host              String
+  port              Int      @default(3306)
+  username          String
+  passwordEncrypted String
+  /// What game servers connect to (e.g. the docker gateway). Null = `host`.
+  connectHost       String?
+  /// MySQL host part for created users, e.g. 172.31.250.% (docker subnet only).
+  allowedRemote     String   @default("%")
+  /// Only servers on this node use this host. Null = any node.
+  nodeId            String?  @db.Uuid
+  node              Node?    @relation(fields: [nodeId], references: [id], onDelete: SetNull)
+  /// Max databases on this host. Null = unlimited.
+  maxDatabases      Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  databases ServerDatabase[]
+
+  @@map("database_host")
+}
+
+model ServerDatabase {
+  id                String       @id @default(uuid()) @db.Uuid
+  serverId          String       @db.Uuid
+  server            Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  hostId            String       @db.Uuid
+  host              DatabaseHost @relation(fields: [hostId], references: [id], onDelete: Restrict)
+  /// Full database name on the host, e.g. s1a2b3c4d_perms.
+  name              String
+  username          String
+  passwordEncrypted String
+  /// MySQL host part the user was created with (copied from the host at creation time).
+  remote            String
+  createdAt         DateTime     @default(now())
+
+  @@unique([hostId, name])
+  @@unique([hostId, username])
+  @@index([serverId])
+  @@map("server_database")
 }
 
 model Allocation {
@@ -106,6 +153,10 @@ model Server {
   lastUtilization Json?
   lastReportAt    DateTime?
   installedAt     DateTime?
+
+  /// Max databases this server may create. 0 = feature disabled (admin must enable).
+  databaseLimit Int              @default(0)
+  databases     ServerDatabase[]
 
   subusers  ServerUser[]
   createdAt DateTime     @default(now())

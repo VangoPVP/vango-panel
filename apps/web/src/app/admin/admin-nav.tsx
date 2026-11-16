@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/admin/servers", label: "Servers" },
   { href: "/admin/nodes", label: "Nodes" },
   { href: "/admin/templates", label: "Templates" },
+  { href: "/admin/databases", label: "Databases" },
   { href: "/admin/users", label: "Users" },
 ] as const;
 
