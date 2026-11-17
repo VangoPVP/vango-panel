@@ -158,6 +158,7 @@ function ServerTabs({ id, perms, databases }: { id: string; perms: string[]; dat
       show: databases && can(perms, "database.read"),
     },
     { href: `${base}/startup`, label: "Startup", active: path.startsWith(`${base}/startup`), show: can(perms, "startup.read") },
+    { href: `${base}/users`, label: "Users", active: path.startsWith(`${base}/users`), show: can(perms, "user.read") },
   ];
   return (
     <nav className="flex gap-1 border-b text-sm" aria-label="Server sections">

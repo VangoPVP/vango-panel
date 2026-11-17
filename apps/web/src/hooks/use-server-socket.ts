@@ -121,7 +121,8 @@ export function useServerSocket(serverId: string, opts: { onInstallCompleted?: (
           reauth?.(); // relayed consoles refresh their token on the panel
           break;
         case "jwt error":
-          setError(`Console auth failed: ${arg}`);
+          // Revoked = your access just changed: reconnect quietly with fresh permissions.
+          if (!/revoked/i.test(arg)) setError(`Console auth failed: ${arg}`);
           conn.close();
           break;
         case "deleted":
@@ -229,6 +230,14 @@ export function useServerSocket(serverId: string, opts: { onInstallCompleted?: (
       try {
         creds = await fetchToken();
       } catch (e) {
+        const code = (e as { data?: { code?: string } }).data?.code;
+        if (code === "NOT_FOUND" || code === "FORBIDDEN") {
+          // Access was removed (or the console permission taken away): stop retrying.
+          disposed = true;
+          setStatus("closed");
+          setError(code === "NOT_FOUND" ? "You no longer have access to this server." : (e as Error).message);
+          return;
+        }
         setError(e instanceof Error ? e.message : "Could not get console token");
         scheduleReconnect();
         return;

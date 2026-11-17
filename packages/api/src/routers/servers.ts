@@ -9,7 +9,6 @@ import {
   parseTemplateVariables,
   powerActionSchema,
   resourceUsageSchema,
-  signWebsocketToken,
   usesPanelRelay,
   WingsError,
 } from "@vango-panel/wings";
@@ -26,9 +25,11 @@ import {
   websocketPermissions,
   wingsFor,
 } from "../lib/wings";
+import { issueWebsocketToken } from "../lib/ws-tokens";
 import { serverDatabasesRouter } from "./server-databases";
 import { serverFilesRouter } from "./server-files";
 import { serverStartupRouter } from "./server-startup";
+import { serverUsersRouter } from "./server-users";
 
 const idInput = z.object({ id: z.string().regex(uuidRe, "invalid server id") });
 
@@ -41,6 +42,7 @@ export const serversRouter = router({
   files: serverFilesRouter,
   startup: serverStartupRouter,
   databases: serverDatabasesRouter,
+  users: serverUsersRouter,
 
   list: protectedProcedure
     .input(z.object({ scope: z.enum(["mine", "others"]).default("mine") }).default({ scope: "mine" }))
@@ -186,7 +188,7 @@ export const serversRouter = router({
     // Browser can't reach this node: the console goes through /api/relay/servers/:id/console.
     if (usesPanelRelay(server.node)) return { mode: "relay" as const };
     const client = wingsFor(server.node);
-    const { token, expiresAt } = signWebsocketToken({
+    const { token, expiresAt } = issueWebsocketToken({
       nodeToken: client.nodeToken,
       userId: ctx.session.user.id,
       serverId: server.id,

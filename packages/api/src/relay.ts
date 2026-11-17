@@ -13,10 +13,11 @@ import { randomUUID } from "node:crypto";
 
 import { TRPCError } from "@trpc/server";
 import { auth } from "@vango-panel/auth";
-import { signWebsocketToken, UPLOAD_CHUNK_BYTES } from "@vango-panel/wings";
+import { UPLOAD_CHUNK_BYTES } from "@vango-panel/wings";
 import { z } from "zod";
 
 import { loadAccessibleServer, requirePermission, uuidRe, websocketPermissions, wingsFor } from "./lib/wings";
+import { issueWebsocketToken } from "./lib/ws-tokens";
 
 type SessionUser = { id: string; role?: string | null };
 
@@ -97,7 +98,7 @@ async function consoleStream(req: Request, serverId: string): Promise<Response> 
   const freshToken = async () => {
     const { server: s, permissions } = await loadAccessibleServer(user, serverId);
     requirePermission(permissions, "websocket.connect");
-    return signWebsocketToken({
+    return issueWebsocketToken({
       nodeToken: wingsFor(s.node).nodeToken,
       userId: user.id,
       serverId,
@@ -180,6 +181,20 @@ async function consoleStream(req: Request, serverId: string): Promise<Response> 
       Connection: "keep-alive",
     },
   });
+}
+
+/** Ends this user's relayed consoles for a server (after their access changed); returns how many. */
+export function closeRelaySessions(serverId: string, userId: string): number {
+  let n = 0;
+  for (const [id, s] of sessions) {
+    if (s.serverId !== serverId || s.userId !== userId) continue;
+    sessions.delete(id);
+    try {
+      s.ws.close(); // ws.onclose tears the browser stream down; the browser reconnects with fresh access
+    } catch {}
+    n++;
+  }
+  return n;
 }
 
 async function consoleSend(req: Request, serverId: string): Promise<Response> {

@@ -224,7 +224,9 @@ export class WingsClient {
     await this.request("POST", `/api/servers/${uuid}/files/write?file=${encodeURIComponent(file)}`, { raw: contents });
   }
 
+  /** Revokes websocket tokens by jti; open consoles using them get "jwt: token has been revoked". */
   async denyWebsocketTokens(uuid: string, jtis: string[]) {
+    if (!jtis.length) return;
     await this.request("POST", `/api/servers/${uuid}/ws/deny`, { jtis });
   }
 }
