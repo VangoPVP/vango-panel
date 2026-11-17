@@ -14,6 +14,10 @@ model User {
   username        String?  @unique
   displayUsername String?
 
+  /// better-auth twoFactor plugin
+  twoFactorEnabled Boolean     @default(false)
+  twoFactors       TwoFactor[]
+
   ownedServers Server[]
   subuserOf    ServerUser[]
   sshKeys      SshKey[]
@@ -57,6 +61,21 @@ model Account {
 
   @@index([userId])
   @@map("account")
+}
+
+/// better-auth twoFactor plugin (fields match better-auth 1.6.11). `secret` and `backupCodes` are
+/// encrypted by better-auth with BETTER_AUTH_SECRET.
+model TwoFactor {
+  id          String  @id
+  secret      String
+  backupCodes String
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified    Boolean @default(true)
+
+  @@index([secret])
+  @@index([userId])
+  @@map("two_factor")
 }
 
 model Verification {

@@ -14,11 +14,24 @@ import { Field, PageShell, Table, Textarea } from "@/components/form";
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/utils/trpc";
 
-export default function AccountView() {
-  const { data: session, isPending } = authClient.useSession();
+import { TwoFactorCard } from "./two-factor-card";
+
+export default function AccountView({ twoFactor }: { twoFactor: { required: boolean; mustSetUp: boolean } }) {
+  const { data: session, isPending, refetch } = authClient.useSession();
   if (isPending || !session) return <Skeleton className="h-96" />;
   return (
     <PageShell title="Account" description={session.user.email}>
+      {twoFactor.mustSetUp ? (
+        <div className="bg-yellow-500/10 px-3 py-2 text-xs ring-1 ring-yellow-500/30">
+          Your role requires two-factor authentication. Set it up below to continue using the panel.
+        </div>
+      ) : null}
+      <TwoFactorCard
+        enabled={!!session.user.twoFactorEnabled}
+        required={twoFactor.required}
+        mustSetUp={twoFactor.mustSetUp}
+        onChanged={() => refetch()}
+      />
       <UsernameCard current={session.user.displayUsername ?? session.user.username ?? ""} />
       <SshKeysCard />
       <PasswordCard />

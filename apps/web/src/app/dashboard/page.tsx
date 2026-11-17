@@ -1,20 +1,12 @@
-import { auth } from "@vango-panel/auth";
 import { isAdminRole } from "@vango-panel/auth/roles";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
 import { PageShell } from "@/components/form";
+import { requireSession } from "@/lib/session";
 
 import Dashboard, { ViewToggle } from "./dashboard";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    redirect("/login");
-  }
+  const session = await requireSession();
 
   const isAdmin = isAdminRole(session.user.role);
   const view = isAdmin && (await searchParams).view === "others" ? "others" : "mine";

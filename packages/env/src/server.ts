@@ -22,6 +22,8 @@ export const env = createEnv({
      * when the public URL sits behind proxy auth (SSO/PIN/password) that wings can't pass.
      */
     PANEL_REMOTE_URL: z.url({ protocol: /^https?$/ }).optional(),
+    /** Who must use two-factor authentication: nobody, admins (default) or everyone. */
+    PANEL_REQUIRE_2FA: z.enum(["none", "admins", "all"]).default("admins"),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
     PANEL_APP_KEY: z
       .string()

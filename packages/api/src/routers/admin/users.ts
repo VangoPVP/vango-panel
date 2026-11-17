@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { ASSIGNABLE_ROLES } from "@vango-panel/auth/roles";
+import { ASSIGNABLE_ROLES, isAdminRole, isSuperAdmin } from "@vango-panel/auth/roles";
 import { normalizeUsername, usernameError } from "@vango-panel/auth/username";
 import prisma from "@vango-panel/db";
 import { z } from "zod";
@@ -27,6 +27,7 @@ export const usersRouter = router({
           email: true,
           username: true,
           role: true,
+          twoFactorEnabled: true,
           createdAt: true,
           _count: { select: { ownedServers: true } },
         },
@@ -61,6 +62,34 @@ export const usersRouter = router({
       });
       return { ok: true, username };
     }),
+
+  /**
+   * For users who lost their authenticator and backup codes: removes their 2FA, trusted devices and
+   * every session. If policy requires 2FA from them, they must set it up again on next sign-in.
+   */
+  resetTwoFactor: adminProcedure.input(z.object({ userId: z.string().min(1) })).mutation(async ({ ctx, input }) => {
+    if (input.userId === ctx.session.user.id) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Manage your own 2FA on your Account page" });
+    }
+    const target = await prisma.user.findUnique({ where: { id: input.userId }, select: { role: true } });
+    if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+    if (isAdminRole(target.role) && !isSuperAdmin(ctx.session.user.role)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Only the super admin can reset an admin's 2FA" });
+    }
+    await prisma.$transaction([
+      prisma.twoFactor.deleteMany({ where: { userId: input.userId } }),
+      prisma.user.update({ where: { id: input.userId }, data: { twoFactorEnabled: false } }),
+      prisma.verification.deleteMany({ where: { identifier: { startsWith: "trust-device-" }, value: input.userId } }),
+      prisma.session.deleteMany({ where: { userId: input.userId } }),
+    ]);
+    await logActivity({
+      userId: ctx.session.user.id,
+      event: "admin:user.2fa_reset",
+      metadata: { user: input.userId },
+      ip: ctx.ip,
+    });
+    return { ok: true };
+  }),
 
   setRole: adminProcedure
     .input(z.object({ userId: z.string().min(1), role: z.enum(ASSIGNABLE_ROLES) }))

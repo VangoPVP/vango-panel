@@ -3,7 +3,7 @@ import { env, panelOrigins } from "@vango-panel/env/server";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
-import { username } from "better-auth/plugins";
+import { twoFactor, username } from "better-auth/plugins";
 
 import { USERNAME_MAX, USERNAME_MIN, usernameError, usernameFromSeed } from "./username";
 
@@ -27,6 +27,12 @@ export function createAuth() {
         minUsernameLength: USERNAME_MIN,
         maxUsernameLength: USERNAME_MAX,
         usernameValidator: (u) => usernameError(u) === null,
+      }),
+      // TOTP (authenticator app) + one-time backup codes. A correct password alone gives no session
+      // for these users: the sign-in returns { twoFactorRedirect } and a short-lived 2FA cookie.
+      twoFactor({
+        issuer: "vango-panel",
+        trustDeviceMaxAge: 30 * 24 * 60 * 60,
       }),
     ],
     user: {

@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { isSuperAdmin } from "@vango-panel/auth/roles";
+import { isAdminRole, isSuperAdmin } from "@vango-panel/auth/roles";
 import { usernameError } from "@vango-panel/auth/username";
 import { Button } from "@vango-panel/ui/components/button";
 import {
@@ -35,6 +35,16 @@ export default function UsersPage() {
       onError: (e) => toast.error(e.message),
     }),
   );
+  const reset2fa = useMutation(
+    trpc.admin.users.resetTwoFactor.mutationOptions({
+      onSuccess: () => {
+        toast.success("2FA reset and the user was signed out everywhere");
+        qc.invalidateQueries({ queryKey: trpc.admin.users.pathKey() });
+      },
+      onError: (e) => toast.error(e.message),
+    }),
+  );
+  const iAmSuper = isSuperAdmin(session?.user.role);
 
   return (
     <PageShell
@@ -50,6 +60,7 @@ export default function UsersPage() {
             <th>Email</th>
             <th>Servers</th>
             <th>Joined</th>
+            <th>2FA</th>
             <th>Role</th>
           </tr>
         </thead>
@@ -69,6 +80,30 @@ export default function UsersPage() {
               <td>{u.email}</td>
               <td>{u.servers}</td>
               <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+              <td className="whitespace-nowrap">
+                {u.twoFactorEnabled ? (
+                  <>
+                    <span className="text-green-600 dark:text-green-400">On</span>
+                    {u.id !== session?.user.id && (iAmSuper || !isAdminRole(u.role)) ? (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        disabled={reset2fa.isPending}
+                        title="For a lost phone: removes their 2FA and signs them out everywhere"
+                        onClick={() =>
+                          confirm(
+                            `Reset 2FA for ${u.name}? Their authenticator and backup codes stop working and they're signed out everywhere.`,
+                          ) && reset2fa.mutate({ userId: u.id })
+                        }
+                      >
+                        Reset
+                      </Button>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Off</span>
+                )}
+              </td>
               <td className="w-40">
                 {isSuperAdmin(u.role) ? (
                   <span className="inline-flex items-center gap-1.5 font-medium" title="The super admin's role can't be changed">
@@ -96,7 +131,7 @@ export default function UsersPage() {
           ))}
           {users.data?.length === 0 ? (
             <tr>
-              <td colSpan={6} className="text-muted-foreground">
+              <td colSpan={7} className="text-muted-foreground">
                 No users found.
               </td>
             </tr>

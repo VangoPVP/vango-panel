@@ -13,9 +13,12 @@ import { randomUUID } from "node:crypto";
 
 import { TRPCError } from "@trpc/server";
 import { auth } from "@vango-panel/auth";
+import { needsTwoFactorSetup } from "@vango-panel/auth/two-factor";
+import { env } from "@vango-panel/env/server";
 import { UPLOAD_CHUNK_BYTES } from "@vango-panel/wings";
 import { z } from "zod";
 
+import { TWO_FACTOR_SETUP_REQUIRED } from "./index";
 import { loadAccessibleServer, requirePermission, uuidRe, websocketPermissions, wingsFor } from "./lib/wings";
 import { issueWebsocketToken } from "./lib/ws-tokens";
 
@@ -49,6 +52,7 @@ async function authorize(req: Request, serverId: string, perm: string) {
   if (!uuidRe.test(serverId)) throw new HttpError(404, "Server not found");
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session?.user) throw new HttpError(401, "Not signed in");
+  if (needsTwoFactorSetup(session.user, env.PANEL_REQUIRE_2FA)) throw new HttpError(412, TWO_FACTOR_SETUP_REQUIRED);
   const user: SessionUser = session.user;
   const { server, permissions } = await loadAccessibleServer(user, serverId);
   requirePermission(permissions, perm);
