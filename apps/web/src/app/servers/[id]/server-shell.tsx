@@ -67,6 +67,11 @@ function ShellInner({
   const power = useMutation(
     trpc.servers.power.mutationOptions({
       onError: (e) => toast.error(e.message),
+      onSuccess: (_result, vars) => {
+        // Kill force-removes the container; refresh so the page reflects it even when the
+        // console socket is disconnected.
+        if (vars.action === "kill") void refresh();
+      },
     }),
   );
 
@@ -115,9 +120,9 @@ function ShellInner({
             </Button>
             <Button
               variant="destructive"
-              disabled={blocked || power.isPending || state === "offline" || !state || !can(perms, "control.kill")}
+              disabled={power.isPending || !can(perms, "control.kill")}
               onClick={() => action("kill")}
-              title="SIGKILL the server"
+              title="Force-kill and remove the container"
             >
               <Skull /> Kill
             </Button>

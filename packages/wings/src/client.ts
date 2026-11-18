@@ -26,6 +26,8 @@ export class WingsError extends Error {
 }
 
 const TIMEOUT_MS = 10_000;
+/** Force-removing a container can take longer than a normal API call. */
+const KILL_TIMEOUT_MS = 35_000;
 
 export type NodeRef = Pick<Node, "url" | "tokenEncrypted"> & Partial<Pick<Node, "publicUrl">>;
 
@@ -75,7 +77,7 @@ export class WingsClient {
     return `${this.base}/upload/chunk`;
   }
 
-  private async request(method: string, path: string, body?: unknown): Promise<Response> {
+  private async request(method: string, path: string, body?: unknown, timeoutMs = TIMEOUT_MS): Promise<Response> {
     const raw = typeof body === "object" && body !== null && "raw" in body ? String((body as { raw: unknown }).raw) : null;
     let res: Response;
     try {
@@ -87,7 +89,7 @@ export class WingsClient {
           ...(body === undefined ? {} : { "Content-Type": raw === null ? "application/json" : "application/octet-stream" }),
         },
         body: body === undefined ? undefined : raw ?? JSON.stringify(body),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (e) {
       const cause = e instanceof Error ? (e.cause instanceof Error ? e.cause.message : e.message) : String(e);
@@ -129,10 +131,15 @@ export class WingsClient {
   }
 
   async power(uuid: string, action: PowerAction, waitSeconds?: number) {
-    await this.request("POST", `/api/servers/${uuid}/power`, {
-      action,
-      ...(waitSeconds ? { wait_seconds: waitSeconds } : {}),
-    });
+    await this.request(
+      "POST",
+      `/api/servers/${uuid}/power`,
+      {
+        action,
+        ...(waitSeconds ? { wait_seconds: waitSeconds } : {}),
+      },
+      action === "kill" ? KILL_TIMEOUT_MS : undefined,
+    );
   }
 
   async commands(uuid: string, commands: string[]) {

@@ -153,10 +153,19 @@ export const serversRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { server, permissions } = await loadAccessibleServer(ctx.session.user, input.id);
       requirePermission(permissions, `control.${input.action}`);
-      if (server.suspended) throw new TRPCError({ code: "FORBIDDEN", message: "Server is suspended" });
-      if (server.status === "installing")
-        throw new TRPCError({ code: "CONFLICT", message: "Server is still installing" });
+      // Kill is the escape hatch: it must work while installing/suspended, because that is
+      // often exactly when a container is stuck. Other actions still respect both gates.
+      if (input.action !== "kill") {
+        if (server.suspended) throw new TRPCError({ code: "FORBIDDEN", message: "Server is suspended" });
+        if (server.status === "installing")
+          throw new TRPCError({ code: "CONFLICT", message: "Server is still installing" });
+      }
       await callWings(() => wingsFor(server.node).power(server.id, input.action));
+      if (input.action === "kill") {
+        // The daemon force-removes the container; reflect that immediately even if the
+        // console websocket is not connected to receive the status event.
+        await prisma.server.update({ where: { id: server.id }, data: { lastState: "offline" } });
+      }
       await logActivity({
         serverId: server.id,
         userId: ctx.session.user.id,

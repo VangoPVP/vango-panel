@@ -47,7 +47,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "control.start", label: "Start", description: "Start the server." },
       { key: "control.stop", label: "Stop", description: "Stop the server." },
       { key: "control.restart", label: "Restart", description: "Restart the server." },
-      { key: "control.kill", label: "Kill", description: "Force-kill the server process." },
+      { key: "control.kill", label: "Kill", description: "Force-kill the server and remove its container." },
     ],
   },
   {
