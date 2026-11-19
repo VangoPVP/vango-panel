@@ -32,3 +32,16 @@ export function takeLiveJtis(serverId: string, userId: string): string[] {
   issued.delete(k);
   return jtis;
 }
+
+/** Live jtis for this user on every server, keyed by server id; forgets them. */
+export function takeLiveJtisForUser(userId: string): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const suffix = `:${userId}`;
+  for (const k of [...issued.keys()]) {
+    if (!k.endsWith(suffix)) continue;
+    const serverId = k.slice(0, -suffix.length);
+    const jtis = takeLiveJtis(serverId, userId);
+    if (jtis.length) out.set(serverId, jtis);
+  }
+  return out;
+}

@@ -1,56 +1,35 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { isAdminRole, isSuperAdmin } from "@vango-panel/auth/roles";
-import { usernameError } from "@vango-panel/auth/username";
-import { Button } from "@vango-panel/ui/components/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@vango-panel/ui/components/dialog";
+import { useQuery } from "@tanstack/react-query";
 import { Input } from "@vango-panel/ui/components/input";
-import { Lock } from "lucide-react";
+import type { Route } from "next";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
 
-import { Field, PageShell, Select, Table } from "@/components/form";
+import { PageShell, Table } from "@/components/form";
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/utils/trpc";
 
+import { RoleLabel } from "./role-label";
+
 export default function UsersPage() {
-  const qc = useQueryClient();
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const [search, setSearch] = useState("");
-  const [renaming, setRenaming] = useState<{ id: string; username: string } | null>(null);
   const users = useQuery(trpc.admin.users.list.queryOptions({ search }));
-  const setRole = useMutation(
-    trpc.admin.users.setRole.mutationOptions({
-      onSuccess: () => {
-        toast.success("Role updated");
-        qc.invalidateQueries({ queryKey: trpc.admin.users.pathKey() });
-      },
-      onError: (e) => toast.error(e.message),
-    }),
-  );
-  const reset2fa = useMutation(
-    trpc.admin.users.resetTwoFactor.mutationOptions({
-      onSuccess: () => {
-        toast.success("2FA reset and the user was signed out everywhere");
-        qc.invalidateQueries({ queryKey: trpc.admin.users.pathKey() });
-      },
-      onError: (e) => toast.error(e.message),
-    }),
-  );
-  const iAmSuper = isSuperAdmin(session?.user.role);
 
   return (
     <PageShell
       title="Users"
-      description="Everyone who has signed up. New accounts are normal users until you make them admin."
-      actions={<Input className="w-64" placeholder="Search email or name…" value={search} onChange={(e) => setSearch(e.target.value)} />}
+      description="Everyone who has signed up. Click a user to edit, reset or delete them."
+      actions={
+        <Input
+          className="w-64"
+          placeholder="Search email, name or username…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      }
     >
       <Table>
         <thead>
@@ -65,70 +44,33 @@ export default function UsersPage() {
           </tr>
         </thead>
         <tbody>
-          {users.data?.map((u) => (
-            <tr key={u.id}>
-              <td>
-                {u.name}
-                {u.id === session?.user.id ? <span className="text-muted-foreground"> (you)</span> : null}
-              </td>
-              <td>
-                <span className="font-mono">{u.username ? `@${u.username}` : "–"}</span>{" "}
-                <Button variant="ghost" size="xs" onClick={() => setRenaming({ id: u.id, username: u.username ?? "" })}>
-                  Rename
-                </Button>
-              </td>
-              <td>{u.email}</td>
-              <td>{u.servers}</td>
-              <td>{new Date(u.createdAt).toLocaleDateString()}</td>
-              <td className="whitespace-nowrap">
-                {u.twoFactorEnabled ? (
-                  <>
+          {users.data?.map((u) => {
+            const href = `/admin/users/${u.id}` as Route;
+            return (
+              <tr key={u.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(href)}>
+                <td>
+                  <Link href={href} className="font-medium underline-offset-2 hover:underline">
+                    {u.name}
+                  </Link>
+                  {u.id === session?.user.id ? <span className="text-muted-foreground"> (you)</span> : null}
+                </td>
+                <td className="font-mono">{u.username ? `@${u.username}` : "–"}</td>
+                <td>{u.email}</td>
+                <td>{u.servers}</td>
+                <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                <td>
+                  {u.twoFactorEnabled ? (
                     <span className="text-green-600 dark:text-green-400">On</span>
-                    {u.id !== session?.user.id && (iAmSuper || !isAdminRole(u.role)) ? (
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        disabled={reset2fa.isPending}
-                        title="For a lost phone: removes their 2FA and signs them out everywhere"
-                        onClick={() =>
-                          confirm(
-                            `Reset 2FA for ${u.name}? Their authenticator and backup codes stop working and they're signed out everywhere.`,
-                          ) && reset2fa.mutate({ userId: u.id })
-                        }
-                      >
-                        Reset
-                      </Button>
-                    ) : null}
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">Off</span>
-                )}
-              </td>
-              <td className="w-40">
-                {isSuperAdmin(u.role) ? (
-                  <span className="inline-flex items-center gap-1.5 font-medium" title="The super admin's role can't be changed">
-                    <Lock className="size-3" /> Super Admin
-                  </span>
-                ) : (
-                  <Select
-                    value={u.role}
-                    disabled={setRole.isPending}
-                    onChange={(e) => {
-                      const role = e.target.value as "admin" | "user";
-                      if (u.id === session?.user.id && role === "user" && !confirm("Remove your own admin access?")) {
-                        e.target.value = u.role;
-                        return;
-                      }
-                      setRole.mutate({ userId: u.id, role });
-                    }}
-                  >
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </Select>
-                )}
-              </td>
-            </tr>
-          ))}
+                  ) : (
+                    <span className="text-muted-foreground">Off</span>
+                  )}
+                </td>
+                <td>
+                  <RoleLabel role={u.role} />
+                </td>
+              </tr>
+            );
+          })}
           {users.data?.length === 0 ? (
             <tr>
               <td colSpan={7} className="text-muted-foreground">
@@ -138,52 +80,6 @@ export default function UsersPage() {
           ) : null}
         </tbody>
       </Table>
-      <Dialog open={renaming !== null} onOpenChange={(o) => !o && setRenaming(null)}>
-        <DialogContent>
-          {renaming ? <RenameUser user={renaming} close={() => setRenaming(null)} /> : null}
-        </DialogContent>
-      </Dialog>
     </PageShell>
-  );
-}
-
-function RenameUser({ user, close }: { user: { id: string; username: string }; close: () => void }) {
-  const qc = useQueryClient();
-  const [value, setValue] = useState(user.username);
-  const error = value ? usernameError(value) : null;
-  const rename = useMutation(
-    trpc.admin.users.setUsername.mutationOptions({
-      onSuccess: async (r) => {
-        toast.success(`Renamed to @${r.username}`);
-        await qc.invalidateQueries({ queryKey: trpc.admin.users.pathKey() });
-        close();
-      },
-      onError: (e) => toast.error(e.message),
-    }),
-  );
-  return (
-    <form
-      className="grid gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!error && value.trim()) rename.mutate({ userId: user.id, username: value.trim() });
-      }}
-    >
-      <DialogHeader>
-        <DialogTitle>Rename @{user.username || "user"}</DialogTitle>
-        <DialogDescription>This also changes their SFTP login.</DialogDescription>
-      </DialogHeader>
-      <Field label="Username" hint={error ? <span className="text-destructive">{error}</span> : undefined}>
-        <Input autoFocus value={value} onChange={(e) => setValue(e.target.value)} />
-      </Field>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={close}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={!!error || !value.trim() || rename.isPending}>
-          Rename
-        </Button>
-      </DialogFooter>
-    </form>
   );
 }

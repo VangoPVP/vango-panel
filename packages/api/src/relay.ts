@@ -187,11 +187,14 @@ async function consoleStream(req: Request, serverId: string): Promise<Response> 
   });
 }
 
-/** Ends this user's relayed consoles for a server (after their access changed); returns how many. */
-export function closeRelaySessions(serverId: string, userId: string): number {
+/**
+ * Ends this user's relayed consoles for a server (after their access changed), or on every server
+ * when `serverId` is null (account reset or deleted); returns how many.
+ */
+export function closeRelaySessions(serverId: string | null, userId: string): number {
   let n = 0;
   for (const [id, s] of sessions) {
-    if (s.serverId !== serverId || s.userId !== userId) continue;
+    if ((serverId !== null && s.serverId !== serverId) || s.userId !== userId) continue;
     sessions.delete(id);
     try {
       s.ws.close(); // ws.onclose tears the browser stream down; the browser reconnects with fresh access
