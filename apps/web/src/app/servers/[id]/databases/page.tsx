@@ -14,7 +14,7 @@ import { Input } from "@vango-panel/ui/components/input";
 import { Skeleton } from "@vango-panel/ui/components/skeleton";
 import { isLoopbackIp, isWildcardIp } from "@vango-panel/wings/allocations";
 import { databaseNameFor, databaseSuffixError } from "@vango-panel/wings/databases";
-import { Copy, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -91,6 +91,24 @@ function DatabaseCard({ db, data, onChanged }: { db: Database; data: Data; onCha
       onError,
     }),
   );
+  const phpMyAdmin = useMutation(trpc.servers.databases.phpmyadmin.mutationOptions());
+  const openPhpMyAdmin = async () => {
+    // Open the tab inside the click handler so popup blockers allow it, then point it at the
+    // one-time login URL once the panel has issued it.
+    const tab = window.open("", "_blank");
+    try {
+      const { url } = await phpMyAdmin.mutateAsync({ id: server.id, databaseId: db.id });
+      if (tab) {
+        tab.opener = null;
+        tab.location.href = url;
+      } else {
+        window.location.href = url;
+      }
+    } catch (e) {
+      tab?.close();
+      onError(e as { message: string });
+    }
+  };
   const del = useMutation(
     trpc.servers.databases.delete.mutationOptions({
       onSuccess: async () => {
@@ -116,6 +134,17 @@ function DatabaseCard({ db, data, onChanged }: { db: Database; data: Data; onCha
           <CardDescription>Connections allowed from {db.remotes.join(", ")}</CardDescription>
         </div>
         <div className="flex gap-1">
+          {data.phpMyAdmin ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={phpMyAdmin.isPending}
+              onClick={openPhpMyAdmin}
+              title="Open this database in phpMyAdmin (new tab, signed in automatically)"
+            >
+              <ExternalLink /> phpMyAdmin
+            </Button>
+          ) : null}
           {data.canUpdate ? (
             <Button
               variant="outline"

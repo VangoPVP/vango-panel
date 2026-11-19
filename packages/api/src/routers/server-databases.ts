@@ -18,6 +18,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import { sourcesForHost } from "../lib/database-sync";
 import { createDatabase, dropDatabase, rotatePassword } from "../lib/mysql";
+import { issuePhpMyAdminLogin, phpMyAdminConfig } from "../lib/phpmyadmin";
 import { loadAccessibleServer, logActivity, requirePermission, uuidRe } from "../lib/wings";
 
 const uuid = z.string().regex(uuidRe);
@@ -65,6 +66,8 @@ export const serverDatabasesRouter = router({
       canUpdate: hasPermission(permissions, "database.update"),
       canDelete: hasPermission(permissions, "database.delete"),
       canViewPasswords: showPasswords,
+      // Auto-login hands over the password, so it needs the same permission as seeing it.
+      phpMyAdmin: showPasswords && phpMyAdminConfig() !== null,
       databases: rows.map((d) => {
         const host = d.host.connectHost ?? d.host.host;
         return {
@@ -154,6 +157,22 @@ export const serverDatabasesRouter = router({
       ip: ctx.ip,
     });
     return { ok: true };
+  }),
+
+  phpmyadmin: protectedProcedure.input(dbInput).mutation(async ({ ctx, input }) => {
+    const { server, permissions } = await loadAccessibleServer(ctx.session.user, input.id);
+    requirePermission(permissions, "database.view-password");
+    if (server.suspended) throw new TRPCError({ code: "FORBIDDEN", message: "Server is suspended" });
+    const db = await loadDatabase(server.id, input.databaseId);
+    const url = await issuePhpMyAdminLogin(ctx.session.user.id, db.id);
+    await logActivity({
+      serverId: server.id,
+      userId: ctx.session.user.id,
+      event: "server:database.phpmyadmin",
+      metadata: { database: db.name },
+      ip: ctx.ip,
+    });
+    return { url };
   }),
 
   delete: protectedProcedure.input(dbInput).mutation(async ({ ctx, input }) => {

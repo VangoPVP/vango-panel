@@ -1,0 +1,28 @@
+# phpMyAdmin for Vango Panel, with auto-login from the panel's Databases tab. See README.md.
+services:
+  phpmyadmin:
+    image: phpmyadmin:5.2-apache
+    container_name: vango-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "${PHPMYADMIN_PORT:-8081}:80"
+    environment:
+      PMA_ABSOLUTE_URI: ${PHPMYADMIN_URL:?set PHPMYADMIN_URL in .env}/
+      VANGO_PANEL_URL: ${PANEL_URL:?set PANEL_URL in .env}
+      VANGO_PANEL_INTERNAL_URL: ${PANEL_INTERNAL_URL:-http://host.docker.internal:3001}
+      VANGO_SIGNON_SECRET: ${PHPMYADMIN_SIGNON_SECRET:?set PHPMYADMIN_SIGNON_SECRET in .env}
+      UPLOAD_LIMIT: ${UPLOAD_LIMIT:-128M}
+    volumes:
+      - ./config.user.inc.php:/etc/phpmyadmin/config.user.inc.php:ro
+      - ./vango-signon.php:/var/www/html/vango-signon.php:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - wings
+
+networks:
+  # Wings' game-server network. Database users may connect from it (e.g. 172.31.250.%), so
+  # phpMyAdmin reaches MariaDB exactly like a game server does.
+  wings:
+    external: true
+    name: ${WINGS_NETWORK:-pterodactyl_nw}

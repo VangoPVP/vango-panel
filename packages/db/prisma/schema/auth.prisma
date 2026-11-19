@@ -22,6 +22,8 @@ model User {
   subuserOf    ServerUser[]
   sshKeys      SshKey[]
 
+  phpMyAdminTokens PhpMyAdminToken[]
+
   @@unique([email])
   @@unique([role], where: raw("role = 'superadmin'"), map: "user_single_superadmin")
   @@map("user")

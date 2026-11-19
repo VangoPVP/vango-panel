@@ -25,6 +25,13 @@ export const env = createEnv({
     /** Who must use two-factor authentication: nobody, admins (default) or everyone. */
     PANEL_REQUIRE_2FA: z.enum(["none", "admins", "all"]).default("admins"),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+    /**
+     * Public URL of the phpMyAdmin container (deploy/phpmyadmin), e.g. http://192.168.2.108:8081.
+     * The Databases tab shows a "phpMyAdmin" button only when this and the secret are set.
+     */
+    PHPMYADMIN_URL: z.url({ protocol: /^https?$/ }).optional(),
+    /** Shared with phpMyAdmin's vango-signon.php, which uses it to redeem one-time login tokens. */
+    PHPMYADMIN_SIGNON_SECRET: z.string().min(32).optional(),
     PANEL_APP_KEY: z
       .string()
       .refine((v) => Buffer.from(v, "base64").length === 32, "must be base64 of exactly 32 bytes"),

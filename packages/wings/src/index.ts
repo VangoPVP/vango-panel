@@ -9,6 +9,7 @@ export * from "./jwt";
 export * from "./node-config";
 export * from "./paths";
 export * from "./permissions";
+export * from "./phpmyadmin";
 export * from "./protocol";
 export { handleRemoteRequest } from "./remote";
 export * from "./rules";

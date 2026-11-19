@@ -64,10 +64,27 @@ model ServerDatabase {
   remote            String?
   createdAt         DateTime     @default(now())
 
+  phpMyAdminTokens PhpMyAdminToken[]
+
   @@unique([hostId, name])
   @@unique([hostId, username])
   @@index([serverId])
   @@map("server_database")
+}
+
+/// One-time phpMyAdmin auto-login tokens. Only the SHA-256 is stored; redeeming deletes the row,
+/// so a token works once, and only until expiresAt.
+model PhpMyAdminToken {
+  tokenHash  String         @id
+  databaseId String         @db.Uuid
+  database   ServerDatabase @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime       @default(now())
+
+  @@index([expiresAt])
+  @@map("phpmyadmin_token")
 }
 
 model Allocation {
