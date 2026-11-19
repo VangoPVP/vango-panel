@@ -1,5 +1,6 @@
 "use client";
 import { isAdminRole } from "@vango-panel/auth/roles";
+import Image from "next/image";
 import Link from "next/link";
 
 import { authClient, type Session } from "@/lib/auth-client";
@@ -22,7 +23,10 @@ export default function Header({ initialSession }: { initialSession: Session | n
   return (
     <div>
       <div className="flex flex-row items-center justify-between px-2 py-1">
-        <nav className="flex gap-4 text-lg">
+        <nav className="flex items-center gap-4 text-lg">
+          <Link href="/" aria-label="VangoPVP home" className="shrink-0">
+            <Image src="/logo.png" alt="VangoPVP" width={342} height={160} priority className="h-10 w-auto" />
+          </Link>
           {links.map(({ to, label }) => {
             return (
               <Link key={to} href={to}>
