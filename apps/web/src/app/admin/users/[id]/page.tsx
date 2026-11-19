@@ -91,6 +91,8 @@ function ProfileCard({ user: u }: { user: User }) {
   const [username, setUsername] = useState(u.displayUsername ?? u.username ?? "");
   const disabled = !!u.locked;
   const usernameErr = username ? usernameError(username) : null;
+  const profileChanged = name !== u.name || email !== u.email;
+  const usernameChanged = !!username.trim() && username.trim() !== (u.displayUsername ?? u.username);
 
   const update = useMutation(
     trpc.admin.users.update.mutationOptions({
@@ -125,77 +127,67 @@ function ProfileCard({ user: u }: { user: User }) {
       <CardHeader>
         <CardTitle>Profile</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      <CardContent>
         <form
-          className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]"
+          className="grid gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            update.mutate({ userId: u.id, name, email });
+            if (profileChanged) update.mutate({ userId: u.id, name, email });
+            if (usernameChanged && !usernameErr) rename.mutate({ userId: u.id, username: username.trim() });
           }}
         >
-          <Field label="Name">
-            <Input value={name} disabled={disabled} onChange={(e) => setName(e.target.value)} required />
-          </Field>
-          <Field label="Email">
-            <Input type="email" value={email} disabled={disabled} onChange={(e) => setEmail(e.target.value)} required />
-          </Field>
-          <Button
-            type="submit"
-            variant="outline"
-            disabled={disabled || update.isPending || (name === u.name && email === u.email)}
-          >
-            Save
-          </Button>
-        </form>
-        <form
-          className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!usernameErr && username.trim()) rename.mutate({ userId: u.id, username: username.trim() });
-          }}
-        >
-          <Field
-            label="Username"
-            hint={usernameErr ? <span className="text-destructive">{usernameErr}</span> : "Also their SFTP login."}
-          >
-            <Input value={username} disabled={disabled} onChange={(e) => setUsername(e.target.value)} />
-          </Field>
-          <Field label="Role">
-            {isSuperAdmin(u.role) ? (
-              <div className="py-1.5 text-xs">
-                <RoleLabel role={u.role} />
-              </div>
-            ) : (
-              <Select
-                value={u.role}
-                disabled={disabled || setRole.isPending}
-                onChange={(e) => {
-                  const role = e.target.value as "admin" | "user";
-                  if (u.self && role === "user" && !confirm("Remove your own admin access?")) {
-                    e.target.value = u.role;
-                    return;
-                  }
-                  setRole.mutate({ userId: u.id, role });
-                }}
-              >
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </Select>
-            )}
-          </Field>
-          <Button
-            type="submit"
-            variant="outline"
-            disabled={
-              disabled ||
-              rename.isPending ||
-              !!usernameErr ||
-              !username.trim() ||
-              username.trim() === (u.displayUsername ?? u.username)
-            }
-          >
-            Rename
-          </Button>
+          <div className="grid items-start gap-3 sm:grid-cols-2">
+            <Field label="Name">
+              <Input value={name} disabled={disabled} onChange={(e) => setName(e.target.value)} required />
+            </Field>
+            <Field label="Email">
+              <Input type="email" value={email} disabled={disabled} onChange={(e) => setEmail(e.target.value)} required />
+            </Field>
+            <Field
+              label="Username"
+              hint={usernameErr ? <span className="text-destructive">{usernameErr}</span> : "Also their SFTP login."}
+            >
+              <Input value={username} disabled={disabled} onChange={(e) => setUsername(e.target.value)} required />
+            </Field>
+            <Field label="Role" hint="Applies immediately.">
+              {isSuperAdmin(u.role) ? (
+                <div className="flex h-8 items-center text-xs">
+                  <RoleLabel role={u.role} />
+                </div>
+              ) : (
+                <Select
+                  value={u.role}
+                  disabled={disabled || setRole.isPending}
+                  onChange={(e) => {
+                    const role = e.target.value as "admin" | "user";
+                    if (u.self && role === "user" && !confirm("Remove your own admin access?")) {
+                      e.target.value = u.role;
+                      return;
+                    }
+                    setRole.mutate({ userId: u.id, role });
+                  }}
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </Select>
+              )}
+            </Field>
+          </div>
+          <div>
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={
+                disabled ||
+                update.isPending ||
+                rename.isPending ||
+                !!usernameErr ||
+                (!profileChanged && !usernameChanged)
+              }
+            >
+              Save
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>
